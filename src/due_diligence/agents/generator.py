@@ -17,7 +17,8 @@ Grounded generation subsystem for Phase B7 of the RAG pipeline.
    - fallback_on_error: bool (Whether to return a safe uncertain answer on failure)
 
 4. Outputs:
-   - GroundedAnswer: Pydantic model with answer_text, cited_evidence_ids, is_uncertain.
+   - GroundedAnswer: Pydantic model with structured claims (text + evidence_ids),
+     assembled answer_text, cited_evidence_ids, and is_uncertain.
 
 5. Dependencies:
    - openai (OpenAI client for chat completions)
@@ -77,6 +78,27 @@ class GeneratorModelError(GeneratorError):
 # ── Structured Domain Models ────────────────────────────────────────────────
 
 
+class Claim(BaseModel):
+    """
+    One atomic factual claim with the evidence IDs that support it.
+
+    A claim may cite several evidence IDs, and the same evidence ID may appear in
+    several claims. B7 assembles the user-facing text and [EX] tokens from this
+    structure; B8 verifies every claim against every evidence ID it cites.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    text: str = Field(
+        ...,
+        description="Atomic factual claim without [EX] tokens",
+    )
+    evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="Context-local evidence IDs supporting this claim (e.g. ['E1', 'E2'])",
+    )
+
+
 class GroundedAnswer(BaseModel):
     """
     Synthesized diligence answer strictly grounded in retrieved source evidence.
@@ -94,6 +116,10 @@ class GroundedAnswer(BaseModel):
         default_factory=list,
         description="List of context-local evidence IDs cited (e.g. ['E1', 'E2'])",
     )
+    claims: list[Claim] = Field(
+        default_factory=list,
+        description="Structured atomic claims with per-claim evidence IDs",
+    )
     is_uncertain: bool = Field(
         default=False,
         description="True if evidence was insufficient or information was not disclosed",
@@ -101,6 +127,162 @@ class GroundedAnswer(BaseModel):
 
 
 # ── Response Parser ─────────────────────────────────────────────────────────
+
+_EVIDENCE_TOKEN_PATTERN = re.compile(r"\[(E\d+)\]", re.IGNORECASE)
+
+
+def _normalize_evidence_id(value: Any) -> str:
+    """Normalize an evidence identifier to the canonical ``E<n>`` form."""
+    cleaned = str(value).strip().strip("[]")
+    if re.fullmatch(r"e\d+", cleaned, re.IGNORECASE):
+        return f"E{cleaned[1:]}"
+    return cleaned
+
+
+def _coerce_evidence_ids(raw: Any) -> list[str]:
+    """Flatten and de-duplicate evidence IDs from model output."""
+    if raw is None:
+        return []
+
+    values: list[Any]
+    if isinstance(raw, list):
+        values = raw
+    else:
+        values = [raw]
+
+    evidence_ids: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if isinstance(value, str):
+            extracted = re.findall(r"E\d+", value, re.IGNORECASE)
+            candidates: list[Any] = extracted or [value]
+        else:
+            candidates = [value]
+        for candidate in candidates:
+            normalized = _normalize_evidence_id(candidate)
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                evidence_ids.append(normalized)
+    return evidence_ids
+
+
+def _raise_for_invalid_evidence_ids(
+    cited: set[str],
+    valid_evidence_ids: set[str] | None,
+) -> None:
+    """Reject evidence tokens that are not present in the active context."""
+    if valid_evidence_ids is None:
+        return
+    invalid_ids = sorted(c for c in cited if c not in valid_evidence_ids)
+    if invalid_ids:
+        raise GeneratorModelError(
+            f"Model response cited invalid evidence token(s) {invalid_ids} not present in active "
+            f"context evidence IDs: {sorted(valid_evidence_ids)}. Hallucinated citations are strictly prohibited."
+        )
+
+
+def _parse_claims(
+    raw_claims: Any,
+    valid_evidence_ids: set[str] | None,
+) -> list[Claim]:
+    """Parse the model's structured ``claims`` array into atomic claims."""
+    if not isinstance(raw_claims, list):
+        raise GeneratorModelError("Model response field 'claims' must be a JSON array.")
+
+    claims: list[Claim] = []
+    all_cited: set[str] = set()
+
+    for raw_claim in raw_claims:
+        if isinstance(raw_claim, str):
+            text = raw_claim.strip()
+            raw_evidence: Any = []
+        elif isinstance(raw_claim, dict):
+            text = str(
+                raw_claim.get("text")
+                or raw_claim.get("claim")
+                or raw_claim.get("statement")
+                or ""
+            ).strip()
+            raw_evidence = (
+                raw_claim.get("evidence_ids")
+                or raw_claim.get("citations")
+                or raw_claim.get("evidence")
+                or []
+            )
+        else:
+            raise GeneratorModelError(
+                f"Each claim must be an object or string, got {type(raw_claim).__name__}."
+            )
+
+        if not text:
+            continue
+
+        # Reconcile tokens accidentally embedded in the claim text, then strip
+        # them so B7 can place exactly one citation group after the claim.
+        text_tokens = [match.group(1) for match in _EVIDENCE_TOKEN_PATTERN.finditer(text)]
+        text = _EVIDENCE_TOKEN_PATTERN.sub("", text)
+        text = re.sub(r"\s+([.,;:!?])", r"\1", text).strip()
+        if not text:
+            continue
+
+        evidence_ids = _coerce_evidence_ids(raw_evidence)
+        for token in text_tokens:
+            normalized = _normalize_evidence_id(token)
+            if normalized not in evidence_ids:
+                evidence_ids.append(normalized)
+
+        all_cited.update(evidence_ids)
+        claims.append(Claim(text=text, evidence_ids=evidence_ids))
+
+    if not claims:
+        raise GeneratorModelError("Parsed response contains no non-empty 'claims'.")
+
+    _raise_for_invalid_evidence_ids(all_cited, valid_evidence_ids)
+    return claims
+
+
+def _assemble_answer_text(claims: list[Claim]) -> str:
+    """Build the user-facing answer with one citation group per atomic claim."""
+    parts: list[str] = []
+    for claim in claims:
+        text = claim.text.strip()
+        if claim.evidence_ids:
+            citations = " ".join(f"[{evidence_id}]" for evidence_id in claim.evidence_ids)
+            if text.endswith((".", "!", "?")):
+                text = f"{text[:-1]} {citations}{text[-1]}"
+            else:
+                text = f"{text} {citations}"
+        if not text.endswith((".", "!", "?", ";", ":")):
+            text += "."
+        parts.append(text)
+    return " ".join(parts)
+
+
+def _resolve_uncertainty(
+    data: dict[str, Any],
+    answer_text: str,
+    cited_evidence_ids: list[str],
+) -> bool:
+    """Resolve the uncertainty flag with the existing safety fallback."""
+    raw_uncertain = data.get("is_uncertain")
+    lower_text = answer_text.lower()
+    if raw_uncertain is not None:
+        is_uncertain = bool(raw_uncertain)
+        if (
+            not is_uncertain
+            and not cited_evidence_ids
+            and (
+                "not disclosed in the ingested document" in lower_text
+                or "does not contain sufficient information" in lower_text
+            )
+        ):
+            is_uncertain = True
+        return is_uncertain
+    return (
+        not cited_evidence_ids
+        or "not disclosed in the ingested document" in lower_text
+        or "does not contain sufficient information" in lower_text
+    )
 
 
 def parse_grounded_answer(
@@ -156,7 +338,28 @@ def parse_grounded_answer(
             f"Expected JSON object from model, got {type(data).__name__}."
         )
 
-    # Extract answer text
+    # Preferred schema: structured atomic claims with explicit evidence sets.
+    raw_claims = data.get("claims")
+    if isinstance(raw_claims, list) and raw_claims:
+        claims = _parse_claims(raw_claims, valid_evidence_ids)
+        answer_text = _assemble_answer_text(claims)
+
+        ordered_cites: list[str] = []
+        seen_cites: set[str] = set()
+        for claim in claims:
+            for cite in claim.evidence_ids:
+                if cite not in seen_cites:
+                    seen_cites.add(cite)
+                    ordered_cites.append(cite)
+
+        return GroundedAnswer(
+            answer_text=answer_text,
+            cited_evidence_ids=ordered_cites,
+            claims=claims,
+            is_uncertain=_resolve_uncertainty(data, answer_text, ordered_cites),
+        )
+
+    # Backward-compatible fallback: free-form answer_text with inline tokens.
     answer_text = str(data.get("answer_text") or data.get("answer") or "").strip()
     if not answer_text:
         raise GeneratorModelError("Parsed response contains empty 'answer_text'.")
@@ -165,56 +368,28 @@ def parse_grounded_answer(
     raw_citations: Any = data.get("cited_evidence_ids") or data.get("citations") or []
     if not isinstance(raw_citations, list):
         raw_citations = []
-    explicit_cites = [str(c).strip().strip("[]") for c in raw_citations if str(c).strip()]
+    explicit_cites = _coerce_evidence_ids(raw_citations)
 
     # Extract citations embedded directly in the answer text (e.g. "[E1]")
-    text_cites = re.findall(r"\[(E\d+)\]", answer_text)
+    text_cites = [match.group(1) for match in _EVIDENCE_TOKEN_PATTERN.finditer(answer_text)]
 
     # Check for invalid citation tokens
     all_cited = set(text_cites).union(explicit_cites)
-    if valid_evidence_ids is not None:
-        invalid_ids = sorted(c for c in all_cited if c not in valid_evidence_ids)
-        if invalid_ids:
-            raise GeneratorModelError(
-                f"Model response cited invalid evidence token(s) {invalid_ids} not present in active "
-                f"context evidence IDs: {sorted(valid_evidence_ids)}. Hallucinated citations are strictly prohibited."
-            )
+    _raise_for_invalid_evidence_ids(all_cited, valid_evidence_ids)
 
     # Reconcile citations: preserve text occurrence order, followed by explicit array
-    ordered_cites: list[str] = []
-    seen: set[str] = set()
+    ordered_cites = []
+    seen_cites = set()
 
     for cite in text_cites + explicit_cites:
-        if cite not in seen:
-            seen.add(cite)
+        if cite not in seen_cites:
+            seen_cites.add(cite)
             ordered_cites.append(cite)
-
-    # Determine uncertainty flag
-    raw_uncertain = data.get("is_uncertain")
-    if raw_uncertain is not None:
-        is_uncertain = bool(raw_uncertain)
-        # Safety fallback: only override if the model claimed is_uncertain=False
-        # but cited zero evidence AND explicitly stated the information is not disclosed
-        if not is_uncertain and len(ordered_cites) == 0:
-            lower_text = answer_text.lower()
-            if (
-                "not disclosed in the ingested document" in lower_text
-                or "does not contain sufficient information" in lower_text
-            ):
-                is_uncertain = True
-    else:
-        # Fallback when is_uncertain key is omitted from model JSON
-        lower_text = answer_text.lower()
-        is_uncertain = (
-            len(ordered_cites) == 0
-            or "not disclosed in the ingested document" in lower_text
-            or "does not contain sufficient information" in lower_text
-        )
 
     return GroundedAnswer(
         answer_text=answer_text,
         cited_evidence_ids=ordered_cites,
-        is_uncertain=is_uncertain,
+        is_uncertain=_resolve_uncertainty(data, answer_text, ordered_cites),
     )
 
 

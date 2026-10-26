@@ -124,15 +124,15 @@ flowchart TB
 | B4 retrieval | `retrieval/retriever.py` | Weaviate hybrid search | Retrieve Top 40 candidates and filter subsidiary-scope leakage |
 | B5 reranking | `retrieval/reranker.py` | `gpt-4o-mini`, JSON mode | Rank candidates by evidence value using 10 financial principles; return Top 7 |
 | B6 context | `retrieval/context_builder.py` | Deterministic Python | Deduplicate, label statement scope, order for attention, sanitize, and serialize evidence as XML |
-| B7 generation | `agents/generator.py` | `gpt-4o`, temperature 0 | Synthesize an answer strictly from evidence; emit `[E1]` tokens, never page numbers |
+| B7 generation | `agents/generator.py` | `gpt-4o`, temperature 0 | Synthesize an answer strictly from evidence; return claims with explicit `evidence_ids`, never page numbers |
 | B8 verification | `agents/citation_verifier.py` | Deterministic Python | Resolve tokens to real pages/sections, verify claim support, convert failures to warnings |
 
 ## How grounding is enforced
 
 1. **Provenance is captured at ingestion.** Every chunk carries its source page range, section heading, and heading path. Citations are resolved from stored metadata, not reconstructed from model memory.
 2. **Evidence is selected before the model writes.** Retrieval and reranking decide what the generator is allowed to see. The generator cannot search the document on its own.
-3. **The generator emits abstract tokens.** It writes `[E1]`, `[E2]`, … and is explicitly forbidden from typing page numbers or document names. B8 maps tokens to citations using the evidence map.
-4. **Verification is independent and deterministic.** For every citing sentence, `check_claim_support()` requires headline numbers (multi-digit values, percentages, currency) and multi-word entities to appear in the cited passage. Unresolved tokens become `[Unverified: EX]` with a diagnostic, rather than a fabricated citation.
+3. **The generator returns structured claims.** Each claim lists the evidence IDs that support it, and B7 places the `[E1]` tokens deterministically. The generator never types page numbers or document names.
+4. **Verification is independent and deterministic.** For every structured claim, `check_claim_evidence_support()` checks the claim against its full evidence set: every referenced chunk must contribute, and every headline number or named entity must appear in at least one cited chunk. One claim may cite several chunks; one chunk may support several claims. Unresolved or unsupported tokens become `[Unverified: EX]` with a diagnostic, rather than a fabricated citation.
 5. **Absence is a valid answer.** If retrieval and reranking cannot supply supporting evidence, the pipeline returns an explicit refusal instead of guessing.
 
 ## Engineering highlights

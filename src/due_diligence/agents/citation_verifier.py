@@ -4,10 +4,12 @@ Citation verification and attribution subsystem for Phase B8 of the RAG pipeline
 1. Purpose:
    Verifies that evidence tokens ([EX]) emitted by Phase B7 Grounded Generation
    exist in the active EvidenceContext (Phase B6) evidence map AND that the cited
-   chunk text actually supports the attributed claim (content-support check),
+   evidence set actually supports the attributed claim (content-support check),
    translates valid tokens into human-readable footnotes and structured Citation
    instances with exact document and page coordinates, and detects
-   unverified/hallucinated citations.
+   unverified/hallucinated citations. Structured claims are checked as a set, so
+   one claim may be supported by several chunks and one token may support several
+   claims.
 
 2. Role in Overall RAG Pipeline:
    Acts as Phase B8 Citation Verification between Phase B7 (Grounded Generation)
@@ -15,7 +17,8 @@ Citation verification and attribution subsystem for Phase B8 of the RAG pipeline
    evidence IDs ('E1', 'E2') to immutable source document provenance.
 
 3. Expected Inputs:
-   - grounded_answer: GroundedAnswer | str | dict[str, Any] (from Phase B7 with answer_text and cited_evidence_ids)
+   - grounded_answer: GroundedAnswer | str | dict[str, Any] (from Phase B7 with
+     structured claims and/or answer_text plus cited_evidence_ids)
    - context: EvidenceContext (from Phase B6 containing evidence_map with complete provenance)
 
 4. Outputs:
@@ -37,11 +40,11 @@ Citation verification and attribution subsystem for Phase B8 of the RAG pipeline
 
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from due_diligence.agents.generator import GroundedAnswer
+from due_diligence.agents.generator import Claim, GroundedAnswer
 from due_diligence.ingestion.elements import (
     TOTAL_ROW_PATTERN,
     is_schedule_boundary_heading,
@@ -227,14 +230,178 @@ def _entity_supported(entity: str, item_entities: str) -> bool:
     return hits * 2 >= len(words)
 
 
+def _claim_anchors(segment: str) -> tuple[list[str], list[str]]:
+    """Return the headline numbers and named entities in a claim segment."""
+    # Non-citation bracket markers ([NIL/NOT DISCLOSED], [Calculated: ...])
+    # are annotations, not claim content.
+    masked = re.sub(r"\[[^\]]*\]", " ", segment)
+    masked = _DATE_MASK_PATTERN.sub(" ", masked)
+
+    numbers: list[str] = []
+    if "calculat" not in segment.lower():
+        equation_results = _equation_results(segment)
+        for match in _NUMBER_PATTERN.finditer(masked):
+            raw_num = match.group(0).strip()
+            norm_num = _normalize_number(raw_num)
+            if not norm_num or _YEAR_PATTERN.match(norm_num):
+                continue
+            if norm_num in equation_results:
+                continue
+            if not _is_headline_number(raw_num, segment):
+                continue
+            numbers.append(raw_num)
+
+    entities: list[str] = []
+    for entity in _extract_claim_entities(masked):
+        normalized_run = _normalize_entity(entity)
+        if _is_primary_entity_run(normalized_run):
+            continue
+        entities.append(entity)
+    return numbers, entities
+
+
+def _claim_content_words(text: str) -> set[str]:
+    """Extract meaningful words for a conservative lexical-support fallback."""
+    words = re.findall(r"[A-Za-z]{4,}", text.lower())
+    return {word for word in words if word not in _GROUNDING_STOPWORDS}
+
+
+def _claim_text_support_reasons(
+    segment: str,
+    token: str,
+    item: EvidenceItem,
+) -> list[str]:
+    """Check one claim segment's numbers and entities against a cited chunk."""
+    reasons: list[str] = []
+    item_norm = _normalize_number(item.text)
+    item_entities = _normalize_entity(item.text)
+    numbers, entities = _claim_anchors(segment)
+
+    for raw_num in numbers:
+        norm_num = _normalize_number(raw_num)
+        if norm_num not in item_norm:
+            reasons.append(
+                f"[{token}] cited claim includes number {raw_num} absent "
+                f"from evidence text (chunk {item.chunk_id})"
+            )
+    for entity in entities:
+        normalized_run = _normalize_entity(entity)
+        if _matches_chunk_scope(normalized_run, item.entity_scope):
+            continue
+        if not _entity_supported(entity, item_entities):
+            reasons.append(
+                f"[{token}] cited claim names entity '{entity}' unsupported "
+                f"by evidence text (chunk {item.chunk_id})"
+            )
+    return reasons
+
+
+def _item_contributes_anchor(
+    item: EvidenceItem,
+    numbers: list[str],
+    entities: list[str],
+) -> bool:
+    """Whether a cited chunk supports at least one checkable claim anchor."""
+    if not numbers and not entities:
+        return True
+    item_norm = _normalize_number(item.text)
+    item_entities = _normalize_entity(item.text)
+    if any(_normalize_number(raw_num) in item_norm for raw_num in numbers):
+        return True
+    for entity in entities:
+        normalized_run = _normalize_entity(entity)
+        if _matches_chunk_scope(normalized_run, item.entity_scope):
+            return True
+        if _entity_supported(entity, item_entities):
+            return True
+    return False
+
+
+def check_claim_evidence_support(
+    claim_text: str,
+    evidence_ids: list[str],
+    items: list[EvidenceItem],
+) -> tuple[list[str], dict[str, list[str]]]:
+    """
+    Verify a structured claim against its complete evidence set.
+
+    The claim's numbers and entities may be spread across several cited chunks;
+    the union must contain every anchor. Each cited chunk must also contribute at
+    least one checkable anchor, so irrelevant citations are not silently accepted.
+
+    Returns:
+        A pair ``(claim_failures, token_failures)``. Claim-level failures apply to
+        every evidence ID in the claim because the union is incomplete. Token-level
+        failures apply only to the specific evidence ID.
+    """
+    claim_failures: list[str] = []
+    token_failures: dict[str, list[str]] = {}
+    item_by_id = {item.evidence_id: item for item in items}
+
+    for token in evidence_ids:
+        if token not in item_by_id:
+            token_failures.setdefault(token, []).append(
+                f"[{token}] cited by generator but absent from EvidenceContext."
+            )
+
+    resolved_items = [item_by_id[token] for token in evidence_ids if token in item_by_id]
+    if not resolved_items:
+        claim_failures.append(
+            f"claim cites no resolvable evidence: {', '.join(evidence_ids) or '(none)'}"
+        )
+        return claim_failures, token_failures
+
+    token_label = "/".join(evidence_ids)
+    union_text = "\n".join(item.text for item in resolved_items)
+    union_item = resolved_items[0].model_copy(
+        update={"text": union_text, "entity_scope": None}
+    )
+    union_reasons = _claim_text_support_reasons(claim_text, token_label, union_item)
+    if union_reasons:
+        claim_failures.extend(union_reasons)
+        return claim_failures, token_failures
+
+    numbers, entities = _claim_anchors(claim_text)
+    if not numbers and not entities:
+        claim_words = _claim_content_words(claim_text)
+        for item in resolved_items:
+            if not claim_words:
+                token_failures.setdefault(item.evidence_id, []).append(
+                    f"[{item.evidence_id}] claim has no checkable content to verify "
+                    f"(chunk {item.chunk_id})"
+                )
+            elif not (claim_words & _claim_content_words(item.text)):
+                token_failures.setdefault(item.evidence_id, []).append(
+                    f"[{item.evidence_id}] cited evidence contributes no lexical "
+                    f"support to the claim (chunk {item.chunk_id})"
+                )
+        return claim_failures, token_failures
+
+    for item in resolved_items:
+        if not _item_contributes_anchor(item, numbers, entities):
+            token_failures.setdefault(item.evidence_id, []).append(
+                f"[{item.evidence_id}] cited evidence contributes no checkable element "
+                f"of the claim (chunk {item.chunk_id})"
+            )
+    return claim_failures, token_failures
+
+
+def _claim_with_token(claim_text: str, token: str) -> str:
+    """Attach one token to a claim for the advisory numeric-grounding check."""
+    text = claim_text.rstrip()
+    if text.endswith((".", "!", "?")):
+        return f"{text[:-1]} [{token}]{text[-1]}"
+    return f"{text} [{token}]"
+
+
 def check_claim_support(
     answer_text: str,
     token: str,
     item: EvidenceItem,
 ) -> list[str]:
     """
-    Content-support check: the cited chunk must actually contain the specific
-    claim attributed to it, not merely exist as a real chunk.
+    Content-support check for free-form answers: the cited chunk must actually
+    contain the specific claim attributed to it, not merely exist as a real chunk.
 
     For each claim segment preceding the citation token, every headline number
     and every multi-word named entity must appear (normalized) in the chunk
@@ -243,43 +410,35 @@ def check_claim_support(
     pass. Returns human-readable failure reasons (empty = supported).
     """
     reasons: list[str] = []
-    item_norm = _normalize_number(item.text)
-    item_entities = _normalize_entity(item.text)
-
     for sentence in _sentences_citing_token(answer_text, token):
-        for segment in _segments_preceding_token(sentence, token):
-            # Non-citation bracket markers ([NIL/NOT DISCLOSED], [Calculated: ...])
-            # are annotations, not claim content.
-            masked = re.sub(r"\[[^\]]*\]", " ", segment)
-            masked = _DATE_MASK_PATTERN.sub(" ", masked)
-            if "calculat" not in segment.lower():
-                equation_results = _equation_results(segment)
-                for match in _NUMBER_PATTERN.finditer(masked):
-                    raw_num = match.group(0).strip()
-                    norm_num = _normalize_number(raw_num)
-                    if not norm_num or _YEAR_PATTERN.match(norm_num):
-                        continue
-                    if norm_num in equation_results:
-                        continue
-                    if not _is_headline_number(raw_num, segment):
-                        continue
-                    if norm_num not in item_norm:
-                        reasons.append(
-                            f"[{token}] cited claim includes number {raw_num} absent "
-                            f"from evidence text (chunk {item.chunk_id})"
-                        )
-            for entity in _extract_claim_entities(masked):
-                normalized_run = _normalize_entity(entity)
-                if _is_primary_entity_run(normalized_run):
-                    continue
-                if _matches_chunk_scope(normalized_run, item.entity_scope):
-                    continue
-                if not _entity_supported(entity, item_entities):
-                    reasons.append(
-                        f"[{token}] cited claim names entity '{entity}' unsupported "
-                        f"by evidence text (chunk {item.chunk_id})"
-                    )
+        segments = [
+            segment
+            for segment in _segments_preceding_token(sentence, token)
+            if segment.strip()
+        ]
+        if not segments:
+            reasons.append(
+                f"[{token}] citation has no preceding claim text to verify."
+            )
+            continue
+        for segment in segments:
+            reasons.extend(_claim_text_support_reasons(segment, token, item))
     return reasons
+
+
+def check_claim_text_support(
+    claim_text: str,
+    token: str,
+    item: EvidenceItem,
+) -> list[str]:
+    """
+    Content-support check for one structured claim.
+
+    Unlike the free-form path, this does not infer claim boundaries from citation
+    placement. Every number and entity in the claim must be present in the cited
+    chunk. Returns human-readable failure reasons (empty = supported).
+    """
+    return _claim_text_support_reasons(claim_text, token, item)
 
 
 def check_numeric_grounding(
@@ -463,6 +622,29 @@ class Citation(BaseModel):
         return f"[{self.document_name}, {pages_str}{sec_str}]"
 
 
+ClaimVerificationStatus = Literal["verified", "partially_supported", "unverified"]
+
+
+class ClaimVerification(BaseModel):
+    """Verification outcome for one structured claim and its evidence set."""
+
+    model_config = ConfigDict(frozen=True)
+
+    text: str = Field(..., description="Claim text that was verified")
+    evidence_ids: list[str] = Field(
+        default_factory=list,
+        description="Evidence IDs the claim cited",
+    )
+    status: ClaimVerificationStatus = Field(
+        ...,
+        description="verified, partially_supported, or unverified",
+    )
+    reasons: list[str] = Field(
+        default_factory=list,
+        description="Human-readable failure reasons; empty when verified",
+    )
+
+
 class VerifiedAnswer(BaseModel):
     """
     Diligence answer with verified source citations and resolved footnote markers.
@@ -493,6 +675,14 @@ class VerifiedAnswer(BaseModel):
     grounding_warnings: list[str] = Field(
         default_factory=list,
         description="Headline-figure grounding tripwire warnings (advisory only, never fail verification)",
+    )
+    claims: list[Claim] = Field(
+        default_factory=list,
+        description="Structured claims supplied by B7",
+    )
+    claim_verifications: list[ClaimVerification] = Field(
+        default_factory=list,
+        description="Per-claim verification outcomes",
     )
 
 
@@ -540,10 +730,12 @@ class CitationVerifier:
             and any flagged unverified tokens.
         """
         # Unpack answer
+        claims: list[Claim] = []
         if isinstance(grounded_answer, GroundedAnswer):
             raw_text = grounded_answer.answer_text
             is_uncertain = grounded_answer.is_uncertain
             explicit_cites = list(grounded_answer.cited_evidence_ids)
+            claims = list(grounded_answer.claims)
         elif isinstance(grounded_answer, dict):
             raw_text = str(grounded_answer.get("answer_text") or grounded_answer.get("answer") or "")
             is_uncertain = bool(grounded_answer.get("is_uncertain", False))
@@ -571,29 +763,102 @@ class CitationVerifier:
                 citations=[],
                 unverified_citations=[],
                 is_uncertain=True,
+                claims=claims,
             )
 
         evidence_map: dict[str, EvidenceItem] = context.evidence_map
 
-        # Step 1: Scan answer_text for cited evidence tokens and malformed attempts in appearance order
-        text_tokens: list[str] = []
-        for match in re.finditer(r"\[([^\]]+)\]", raw_text):
-            inner = match.group(1).strip()
-            # Split comma-separated tokens inside brackets (e.g. "E1, E2")
-            parts = [p.strip() for p in re.split(r"[,;]", inner) if p.strip()]
-            for part in parts:
-                if re.fullmatch(r"E\d+|[eE][xX]|[eE][a-zA-Z]{1,4}|[eE][_\-]\d+|[eE]", part):
-                    text_tokens.append(part)
+        # Step 1/2: Determine candidate order and per-token support failures.
+        # Structured claims are verified as a set: a claim's facts may be spread
+        # across several cited chunks, but every chunk must contribute.
+        token_failures: dict[str, list[str]] = {}
+        claim_verifications: list[ClaimVerification] = []
+        if claims:
+            ordered_candidates: list[str] = []
+            seen: set[str] = set()
+            for claim in claims:
+                for token in claim.evidence_ids:
+                    clean_token = token.strip().strip("[]")
+                    if clean_token and clean_token not in seen:
+                        seen.add(clean_token)
+                        ordered_candidates.append(clean_token)
 
-        # Step 2: Combine with any explicit cited_evidence_ids from the structured model
-        ordered_candidates: list[str] = []
-        seen: set[str] = set()
+            for claim in claims:
+                if not claim.evidence_ids:
+                    claim_verifications.append(
+                        ClaimVerification(
+                            text=claim.text,
+                            evidence_ids=[],
+                            status="unverified",
+                            reasons=["claim cites no evidence IDs."],
+                        )
+                    )
+                    continue
 
-        for token in text_tokens + explicit_cites:
-            clean_token = token.strip().strip("[]")
-            if clean_token and clean_token not in seen:
-                seen.add(clean_token)
-                ordered_candidates.append(clean_token)
+                resolved_items = [
+                    evidence_map[token]
+                    for token in claim.evidence_ids
+                    if token in evidence_map
+                ]
+                claim_failures, token_specific = check_claim_evidence_support(
+                    claim.text,
+                    claim.evidence_ids,
+                    resolved_items,
+                )
+
+                failed_tokens: list[str] = []
+                for token in claim.evidence_ids:
+                    reasons = list(claim_failures)
+                    reasons.extend(token_specific.get(token, []))
+                    if reasons:
+                        failed_tokens.append(token)
+                        token_failures.setdefault(token, []).extend(reasons)
+
+                if not failed_tokens:
+                    status: ClaimVerificationStatus = "verified"
+                elif len(failed_tokens) == len(claim.evidence_ids):
+                    status = "unverified"
+                else:
+                    status = "partially_supported"
+
+                claim_reasons = list(claim_failures)
+                for token in claim.evidence_ids:
+                    claim_reasons.extend(token_specific.get(token, []))
+                claim_verifications.append(
+                    ClaimVerification(
+                        text=claim.text,
+                        evidence_ids=list(claim.evidence_ids),
+                        status=status,
+                        reasons=list(dict.fromkeys(claim_reasons)),
+                    )
+                )
+        else:
+            # Backward-compatible free-form path: scan answer_text for tokens.
+            text_tokens: list[str] = []
+            for match in re.finditer(r"\[([^\]]+)\]", raw_text):
+                inner = match.group(1).strip()
+                # Split comma-separated tokens inside brackets (e.g. "E1, E2")
+                parts = [p.strip() for p in re.split(r"[,;]", inner) if p.strip()]
+                for part in parts:
+                    if re.fullmatch(r"E\d+|[eE][xX]|[eE][a-zA-Z]{1,4}|[eE][_\-]\d+|[eE]", part):
+                        text_tokens.append(part)
+
+            ordered_candidates = []
+            seen = set()
+            for token in text_tokens + explicit_cites:
+                clean_token = token.strip().strip("[]")
+                if clean_token and clean_token not in seen:
+                    seen.add(clean_token)
+                    ordered_candidates.append(clean_token)
+
+            for token in ordered_candidates:
+                item = evidence_map.get(token)
+                if item is None:
+                    token_failures[token] = [
+                        f"[{token}] cited by generator but absent from EvidenceContext."
+                    ]
+                else:
+                    token_failures[token] = check_claim_support(raw_text, token, item)
 
         # Step 3: Partition candidates into verified and unverified
         verified_citations: list[Citation] = []
@@ -602,54 +867,58 @@ class CitationVerifier:
         token_to_number: dict[str, int] = {}
 
         for token in ordered_candidates:
-            if token in evidence_map:
-                item = evidence_map[token]
+            item = evidence_map.get(token)
+            support_failures = token_failures.get(token, [])
+            if item is None or support_failures:
+                unverified_citations.append(token)
+                for reason in support_failures:
+                    logger.warning("Claim support: %s", reason)
+                    all_grounding_warnings.append(reason)
+                continue
 
-                # Content-support check (correctness gate): the cited chunk must
-                # actually contain the attributed claim, not merely exist. A
-                # resolvable chunk ID is necessary but not sufficient.
-                support_failures = check_claim_support(raw_text, token, item)
-                if support_failures:
-                    unverified_citations.append(token)
-                    for reason in support_failures:
-                        logger.warning("Claim support: %s", reason)
-                        all_grounding_warnings.append(reason)
-                    continue
+            cit_num = len(verified_citations) + 1
+            token_to_number[token] = cit_num
 
-                cit_num = len(verified_citations) + 1
-                token_to_number[token] = cit_num
+            # Build excerpt snippet
+            clean_excerpt = item.text.strip().replace("\n", " ")
+            if len(clean_excerpt) > 200:
+                clean_excerpt = clean_excerpt[:197] + "..."
 
-                # Build excerpt snippet
-                clean_excerpt = item.text.strip().replace("\n", " ")
-                if len(clean_excerpt) > 200:
-                    clean_excerpt = clean_excerpt[:197] + "..."
-
-                # Headline-figure grounding tripwire (advisory warnings only)
-                question = context.original_query or context.retrieval_query
+            # Headline-figure grounding tripwire (advisory warnings only)
+            question = context.original_query or context.retrieval_query
+            if claims:
+                for claim in claims:
+                    if token in claim.evidence_ids:
+                        grounding_notes = check_numeric_grounding(
+                            _claim_with_token(claim.text, token),
+                            token,
+                            item,
+                            question,
+                        )
+                        for note in grounding_notes:
+                            logger.warning("Numeric grounding: %s", note)
+                            all_grounding_warnings.append(note)
+            else:
                 grounding_notes = check_numeric_grounding(raw_text, token, item, question)
                 for note in grounding_notes:
                     logger.warning("Numeric grounding: %s", note)
                     all_grounding_warnings.append(note)
 
-                citation = Citation(
-                    citation_number=cit_num,
-                    evidence_id=token,
-                    chunk_id=item.chunk_id,
-                    document_name=item.document_name,
-                    page_numbers=list(item.page_numbers),
-                    section_heading=resolve_citation_heading(item),
-                    heading_path=list(item.heading_path),
-                    source_element_ids=list(item.source_element_ids),
-                    chunk_type=item.chunk_type,
-                    snippet=clean_excerpt,
-                )
-                verified_citations.append(citation)
-            else:
-                unverified_citations.append(token)
-                logger.warning(
-                    "Citation token [%s] was cited by generator but is absent from EvidenceContext.",
-                    token,
-                )
+            citation = Citation(
+                citation_number=cit_num,
+                evidence_id=token,
+                chunk_id=item.chunk_id,
+                document_name=item.document_name,
+                page_numbers=list(item.page_numbers),
+                section_heading=resolve_citation_heading(item),
+                heading_path=list(item.heading_path),
+                source_element_ids=list(item.source_element_ids),
+                chunk_type=item.chunk_type,
+                snippet=clean_excerpt,
+            )
+            verified_citations.append(citation)
+
+        all_grounding_warnings = list(dict.fromkeys(all_grounding_warnings))
 
         # Step 4: Resolve text markers
         resolved_text = raw_text
@@ -694,6 +963,8 @@ class CitationVerifier:
             unverified_citations=unverified_citations,
             is_uncertain=is_uncertain,
             grounding_warnings=all_grounding_warnings,
+            claims=claims,
+            claim_verifications=claim_verifications,
         )
 
 

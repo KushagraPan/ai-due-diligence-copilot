@@ -772,3 +772,177 @@ class TestClaimSupportCheck:
         assert len(res.citations) == 1
         assert res.unverified_citations == []
 
+
+
+# Claim/evidence verification regressions (structured B7 output)
+
+from due_diligence.agents.generator import Claim
+
+
+def _answer_with_claims(text: str, claims: list[Claim]) -> GroundedAnswer:
+    """Build a GroundedAnswer whose text and structured claims agree."""
+    cited: list[str] = []
+    for claim in claims:
+        for token in claim.evidence_ids:
+            if token not in cited:
+                cited.append(token)
+    return GroundedAnswer(
+        answer_text=text,
+        cited_evidence_ids=cited,
+        claims=claims,
+    )
+
+
+def test_claim_one_claim_one_citation_verified() -> None:
+    item = _make_evidence_item("E1", "Revenue was 100 crore.", "c1", [10])
+    answer = _answer_with_claims(
+        "Revenue was 100 crore [E1].",
+        [Claim(text="Revenue was 100 crore.", evidence_ids=["E1"])],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([item]))
+
+    assert result.claim_verifications[0].status == "verified"
+    assert result.answer_text == "Revenue was 100 crore [1]."
+    assert result.unverified_citations == []
+
+
+def test_claim_one_claim_multiple_citations_verified_by_union() -> None:
+    e1 = _make_evidence_item(
+        "E1",
+        "Higher loan growth drove the increase in revenue.",
+        "c1",
+        [10],
+    )
+    e2 = _make_evidence_item("E2", "Revenue increased during the year.", "c2", [11])
+    answer = _answer_with_claims(
+        "Revenue increased because of higher loan growth [E1] [E2].",
+        [
+            Claim(
+                text="Revenue increased because of higher loan growth.",
+                evidence_ids=["E1", "E2"],
+            )
+        ],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1, e2]))
+
+    assert result.claim_verifications[0].status == "verified"
+    assert result.answer_text.count("[") == 2
+    assert "Unverified" not in result.answer_text
+
+
+def test_claim_multiple_claims_different_citations() -> None:
+    e1 = _make_evidence_item("E1", "Revenue was 100 crore.", "c1", [10])
+    e2 = _make_evidence_item("E2", "Profit was 20 crore.", "c2", [11])
+    answer = _answer_with_claims(
+        "Revenue was 100 crore [E1]. Profit was 20 crore [E2].",
+        [
+            Claim(text="Revenue was 100 crore.", evidence_ids=["E1"]),
+            Claim(text="Profit was 20 crore.", evidence_ids=["E2"]),
+        ],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1, e2]))
+
+    assert [c.status for c in result.claim_verifications] == ["verified", "verified"]
+    assert result.answer_text == "Revenue was 100 crore [1]. Profit was 20 crore [2]."
+
+
+def test_claim_multiple_claims_share_citation_verified_independently() -> None:
+    e1 = _make_evidence_item(
+        "E1",
+        "Revenue was 100 crore and profit was 20 crore.",
+        "c1",
+        [10],
+    )
+    answer = _answer_with_claims(
+        "Revenue was 100 crore [E1]. Profit was 20 crore [E1].",
+        [
+            Claim(text="Revenue was 100 crore.", evidence_ids=["E1"]),
+            Claim(text="Profit was 20 crore.", evidence_ids=["E1"]),
+        ],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1]))
+
+    assert [c.status for c in result.claim_verifications] == ["verified", "verified"]
+    assert result.answer_text == "Revenue was 100 crore [1]. Profit was 20 crore [1]."
+
+
+def test_claim_adjacent_citations_do_not_pass_vacuously() -> None:
+    e1 = _make_evidence_item("E1", "Revenue grew 12% during the year.", "c1", [10])
+    e2 = _make_evidence_item("E2", "Deposits grew 5% during the year.", "c2", [11])
+    answer = GroundedAnswer(
+        answer_text="Revenue grew 12% [E1] [E2].",
+        cited_evidence_ids=["E1", "E2"],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1, e2]))
+
+    assert "[1]" in result.answer_text
+    assert "[Unverified: E2]" in result.answer_text
+    assert result.unverified_citations == ["E2"]
+
+
+def test_claim_unsupported_second_citation_is_not_fully_verified() -> None:
+    e1 = _make_evidence_item("E1", "Revenue grew 12% during the year.", "c1", [10])
+    e2 = _make_evidence_item("E2", "Deposits grew 5% during the year.", "c2", [11])
+    answer = _answer_with_claims(
+        "Revenue grew 12% [E1] [E2].",
+        [Claim(text="Revenue grew 12%.", evidence_ids=["E1", "E2"])],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1, e2]))
+
+    assert result.claim_verifications[0].status == "partially_supported"
+    assert result.unverified_citations == ["E2"]
+    assert "[Unverified: E2]" in result.answer_text
+
+
+def test_claim_unknown_evidence_id_is_unverified() -> None:
+    answer = _answer_with_claims(
+        "Revenue grew 12% [E999].",
+        [Claim(text="Revenue grew 12%.", evidence_ids=["E999"])],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([]))
+
+    assert result.claim_verifications[0].status == "unverified"
+    assert result.unverified_citations == ["E999"]
+    assert result.answer_text == "Revenue grew 12% [Unverified: E999]."
+
+
+def test_claim_two_atomic_claims_in_one_sentence_verified_independently() -> None:
+    e1 = _make_evidence_item(
+        "E1",
+        "As of March 31, 2026, HDFC Bank had 9,689 branches.",
+        "c1",
+        [61],
+    )
+    e2 = _make_evidence_item(
+        "E2",
+        "The Bank operated nine Digital Banking Units (DBUs).",
+        "c2",
+        [62],
+    )
+    answer = _answer_with_claims(
+        "As of March 31, 2026, HDFC Bank had 9,689 branches, including nine "
+        "Digital Banking Units (DBUs) [E1] [E2].",
+        [
+            Claim(
+                text="As of March 31, 2026, HDFC Bank had 9,689 branches.",
+                evidence_ids=["E1"],
+            ),
+            Claim(
+                text="Nine of those branches were Digital Banking Units (DBUs).",
+                evidence_ids=["E2"],
+            ),
+        ],
+    )
+
+    result = CitationVerifier().verify(answer, _make_context([e1, e2]))
+
+    assert [c.status for c in result.claim_verifications] == ["verified", "verified"]
+    assert "Unverified" not in result.answer_text
+    assert "[1]" in result.answer_text and "[2]" in result.answer_text

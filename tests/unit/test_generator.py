@@ -505,3 +505,64 @@ class TestParseGroundedAnswer:
             ans.answer_text = "Mutated text"
 
 
+
+
+class TestStructuredClaimsParsing:
+    """B7 structured claim/evidence parsing regressions."""
+
+    def test_parse_claims_with_multiple_and_shared_evidence(self) -> None:
+        raw = json.dumps(
+            {
+                "claims": [
+                    {
+                        "text": "HDFC Bank had 9,689 branches.",
+                        "evidence_ids": ["E1", "E2"],
+                    },
+                    {
+                        "text": "Nine of those were Digital Banking Units.",
+                        "evidence_ids": ["E2"],
+                    },
+                ],
+                "is_uncertain": False,
+            }
+        )
+
+        answer = parse_grounded_answer(raw, valid_evidence_ids={"E1", "E2"})
+
+        assert [c.evidence_ids for c in answer.claims] == [["E1", "E2"], ["E2"]]
+        assert answer.cited_evidence_ids == ["E1", "E2"]
+        assert answer.answer_text == (
+            "HDFC Bank had 9,689 branches [E1] [E2]. "
+            "Nine of those were Digital Banking Units [E2]."
+        )
+
+    def test_claim_embedded_tokens_are_normalized_into_evidence_ids(self) -> None:
+        raw = json.dumps(
+            {
+                "claims": [
+                    {
+                        "text": "Revenue grew 12% [e1].",
+                        "evidence_ids": ["[E2]"],
+                    }
+                ],
+                "is_uncertain": False,
+            }
+        )
+
+        answer = parse_grounded_answer(raw, valid_evidence_ids={"E1", "E2"})
+
+        assert answer.claims[0].text == "Revenue grew 12%."
+        assert answer.claims[0].evidence_ids == ["E2", "E1"]
+
+    def test_claim_unknown_evidence_id_is_rejected(self) -> None:
+        raw = json.dumps(
+            {
+                "claims": [
+                    {"text": "Revenue grew 12%.", "evidence_ids": ["E999"]}
+                ],
+                "is_uncertain": False,
+            }
+        )
+
+        with pytest.raises(GeneratorModelError, match="invalid evidence token"):
+            parse_grounded_answer(raw, valid_evidence_ids={"E1", "E2"})

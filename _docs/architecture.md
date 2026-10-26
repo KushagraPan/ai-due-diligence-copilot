@@ -45,7 +45,7 @@ flowchart TD
     end
 
     subgraph Guardrails["Citation & Claim-Support Guardrails"]
-        GroundedGen --> CitationVerifier["Citation Verifier (Deterministic Python)<br/>(check_claim_support, resolve_citation_heading)"]
+        GroundedGen --> CitationVerifier["Citation Verifier (Deterministic Python)<br/>(claim/evidence verification, resolve_citation_heading)"]
         CitationVerifier --> OutputFormatter["Footnote Citation Formatter<br/>([1], [2] with Exact Page & Section)"]
     end
 
@@ -98,10 +98,10 @@ sequenceDiagram
 
     CLI->>Gen: Invoke gpt-4o (original_query + EvidenceContext, temperature=0.0)
     Gen->>Gen: Synthesize answer citing [EX] tokens under 8 grounding rules
-    Gen-->>CLI: Emits GroundedAnswer (answer_text, cited_evidence_ids, is_uncertain)
+    Gen-->>CLI: Emits GroundedAnswer (claims: text + evidence_ids, is_uncertain)
 
-    CLI->>Verifier: Verify claim support & resolve citations
-    Verifier->>Verifier: check_claim_support() (verifies numbers & entities in cited chunk text)
+    CLI->>Verifier: Verify each claim against its own evidence set
+    Verifier->>Verifier: check_claim_evidence_support() (union + per-chunk contribution)
     Verifier->>Verifier: resolve_citation_heading() (locates true section heading)
     Verifier-->>CLI: Emits VerifiedAnswer with footnote markers [1] [2] + Citation objects
 
@@ -141,9 +141,9 @@ sequenceDiagram
 ### 4.5 Grounded Generation & Guardrails Subsystem
 - **Grounded LLM Generator (B7):** Powered by **`gpt-4o`** (`Settings.generation_model`) at `temperature=0.0` with `response_format={"type": "json_object"}`. Enforces 8 non-negotiable grounding rules and emits answers referencing `[EX]` tokens.
 - **Citation Attribution & Claim Support (B8):** Deterministic Python subsystem (`CitationVerifier`):
-  - `check_claim_support()`: Verifies that every headline number ($\ge 4$ digits, %, currency) and multi-word entity in a citing segment is physically present in the cited chunk text. Violations convert the token to `[Unverified: EX]`.
+  - `check_claim_evidence_support()`: Verifies each structured claim against its complete evidence set. The union of cited chunks must contain every headline number and named entity; each cited chunk must contribute at least one checkable element (or lexical support for qualitative claims). Violations convert the token to `[Unverified: EX]`.
   - `resolve_citation_heading()`: Resolves the nearest true section heading, filtering out data rows, Total lines, and footnote markers.
-  - Translates abstract tokens into user-facing footnotes `[1]`, `[2]` with exact page numbers and document names.
+  - Records per-claim `verified` / `partially_supported` / `unverified` outcomes and translates abstract tokens into user-facing footnotes `[1]`, `[2]` with exact page numbers and document names.
 
 ### 4.6 Product CLI & Presentation Layer
 - **Interactive Terminal:** `cli.py` (`uv run diligence` or `uv run python -m due_diligence.cli`) provides multi-turn conversation memory, friendly error handling, and structured output.

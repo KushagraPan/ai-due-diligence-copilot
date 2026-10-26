@@ -190,6 +190,12 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Fresh-clone validation on Python 3.11 and 3.12: `uv sync --extra dev` succeeds; without the PDF/torch, `551 passed, 19 skipped`; with both available in the main checkout, `570 passed`.
   - Live validation (2026-10-26): corrected `WEAVIATE_URL` to the active EU Central REST endpoint; `/v1/meta` and readiness returned 200; the `DiligenceChunk` aggregate count is 1,984; the branch question returned 9,689 branches with verified citations; the NovaPay negative question returned an explicit "not disclosed" refusal. Source PDF verified with `--strict-checksum` (678 pages).
   - Tests: 570 pass; ruff + mypy strict clean.
+- [x] **B7/B8 structured claim-to-evidence mapping (2026-10-26)**
+  - B7 now returns `claims: [{text, evidence_ids}]`; `GroundedAnswer` carries the structured claims and deterministic `[EX]` placement, with the old `answer_text` schema retained as a fallback.
+  - B8 verifies each claim against its own evidence set. Multiple evidence IDs per claim, shared evidence across claims, invalid IDs, and adjacent tokens no longer rely on positional text segments. `VerifiedAnswer` exposes per-claim `verified` / `partially_supported` / `unverified` outcomes.
+  - Free-form adjacent citations are no longer allowed to pass vacuously; a token with no preceding claim text is flagged.
+  - Added regressions for all one-to-many/many-to-many patterns, unsupported second citations, unknown IDs, and the HDFC branch/DBU output.
+  - Tests: 581 pass; ruff + mypy strict clean.
 
 ---
 
