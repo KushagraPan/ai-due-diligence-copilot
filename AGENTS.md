@@ -88,7 +88,7 @@ Maintain clean, decoupled separation across the core pipeline stages:
 
 3. **Reranking Subsystem (B5):**
    - Query + Retrieved Candidates ($N=40$) $\to$ LLM Reranker (`gpt-4o-mini`, JSON mode, 10 financial ranking principles) $\to$ Top Evidence ($K=7$ chunk IDs).
-   - Conceptually distinct from retrieval. The system previously tested cross-encoders (BGE-large, Ettin-17M), which were completely removed due to 50s CPU latency and 512-token table truncation. B5 is now exclusively an LLM-based reranker.
+   - Conceptually distinct from retrieval. The system previously tested local cross-encoders, which were completely removed due to 50s CPU latency and 512-token table truncation. B5 is now exclusively an LLM-based reranker.
 
 4. **Context Construction Subsystem (B6):**
    - Reranked Chunks ($K=7$) $\to$ Deduplication $\to$ Statement Scope Label Injection (`[STANDALONE ...]` / `[CONSOLIDATED ...]`) $\to$ U-shaped attention ordering $\to$ Sanitized XML serialization (`<diligence_context>`) with deterministic evidence tokens (`E1`...`E7`).
@@ -142,7 +142,7 @@ Chunking must be document-aware, respecting headings, sections, and tabular stru
 - It emits at most Top-$K=7$ chunk IDs (`{"ranked_chunk_ids": [...]}`). Unknown/duplicate IDs are rejected, and API errors fall back deterministically to B4 input rank order.
 - Pipeline flow:
   $$\text{Weaviate Hybrid Search} \xrightarrow{\text{Top } N = 40} \text{LLM Reranker (gpt-4o-mini)} \xrightarrow{\text{Top } K = 7} \text{Context Assembly}$$
-- **Historical Note:** The repository previously explored cross-encoders (`bge-reranker-large`, `cross-encoder/ettin-reranker-17m-v1`). They were removed because they suffered from 50s CPU latency, 512-token context truncation, and systematic bias against tabular markdown schedules.
+- **Historical Note:** The repository previously explored local cross-encoders. They were removed because they suffered from 50s CPU latency, 512-token context truncation, and systematic bias against tabular markdown schedules.
 
 ### 4.5 Citation & Provenance Rules
 - Every statement or extracted metric presented to the user must carry a verifiable citation:

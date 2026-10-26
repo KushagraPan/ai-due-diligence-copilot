@@ -22,7 +22,6 @@ Dense vector embedding provider abstractions and implementations.
 5. Dependencies:
    - ``openai`` for OpenAI API embeddings.
    - ``due_diligence.core.config.Settings`` for credential/model configuration.
-   - Optional local PyTorch/Transformers for local BGE embeddings.
 
 6. Non-Responsibilities:
    - Does not store vectors in Weaviate or execute search queries.
@@ -41,17 +40,6 @@ import openai
 from due_diligence.core.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
-
-# Native dimensionalities for supported BGE models
-BGE_NATIVE_DIMENSIONS: dict[str, int] = {
-    "BAAI/bge-large-en-v1.5": 1024,
-    "BAAI/bge-base-en-v1.5": 768,
-    "BAAI/bge-small-en-v1.5": 384,
-    "bge-large-en-v1.5": 1024,
-    "bge-base-en-v1.5": 768,
-    "bge-small-en-v1.5": 384,
-}
-
 
 # ── Typed Exceptions ────────────────────────────────────────────────────────
 
@@ -354,180 +342,6 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         return capped * jitter
 
 
-# ── Local BGE Provider ──────────────────────────────────────────────────────
-
-
-class LocalBGEEmbeddingProvider(BaseEmbeddingProvider):
-    """
-    Local BGE embedding provider using on-device PyTorch / HuggingFace Transformers.
-
-    Enforces native model dimensionality (e.g. 1024 for bge-large-en-v1.5),
-    appends required asymmetric query prefixes, and normalizes vectors to unit L2 norm.
-    """
-
-    QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
-
-    def __init__(
-        self,
-        model_name: str = "BAAI/bge-large-en-v1.5",
-        dimension: int | None = None,
-        batch_size: int = 32,
-        device: str | None = None,
-        tokenizer: Any | None = None,
-        model: Any | None = None,
-    ) -> None:
-        """
-        Initialize the Local BGE embedding provider.
-
-        Args:
-            model_name: HuggingFace model identifier.
-            dimension: Optional configured dimension. Must match native dimension if supplied.
-            batch_size: Batch size for local tensor inference.
-            device: Inference device ('cpu', 'cuda'). Defaults to auto-detection.
-            tokenizer: Optional injected tokenizer (for unit testing without downloads).
-            model: Optional injected model (for unit testing without downloads).
-        """
-        self._model_name = model_name
-        self._batch_size = batch_size
-        self._device = device
-
-        # Determine authoritative native dimension
-        native_dim = BGE_NATIVE_DIMENSIONS.get(model_name)
-        if native_dim is None:
-            # If unknown BGE variant, require explicit dimension or default to 1024
-            native_dim = dimension or 1024
-
-        if dimension is not None and dimension != native_dim:
-            raise EmbeddingConfigurationError(
-                f"Configured dimension ({dimension}) does not match {model_name} "
-                f"native dimension ({native_dim}). Local BGE uses authoritative native dimensionality."
-            )
-
-        self._dimension = native_dim
-        self._tokenizer = tokenizer
-        self._model = model
-        self._is_loaded = tokenizer is not None and model is not None
-
-        logger.info(
-            "Initialized LocalBGEEmbeddingProvider (model=%s, dimension=%d, batch_size=%d)",
-            self._model_name,
-            self._dimension,
-            self._batch_size,
-        )
-
-    @property
-    def model_name(self) -> str:
-        return self._model_name
-
-    @property
-    def dimension(self) -> int:
-        return self._dimension
-
-    @property
-    def batch_size(self) -> int:
-        return self._batch_size
-
-    def _ensure_loaded(self) -> None:
-        """Lazily load PyTorch and HuggingFace Transformers models on first use."""
-        if self._is_loaded:
-            return
-
-        try:
-            import torch
-            from transformers import AutoModel, AutoTokenizer
-
-            detected_device = self._device
-            if detected_device is None:
-                detected_device = "cuda" if torch.cuda.is_available() else "cpu"
-
-            logger.info("Loading local model %s on %s...", self._model_name, detected_device)
-            self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-            self._model = AutoModel.from_pretrained(self._model_name).to(detected_device)
-            self._model.eval()
-            self._device = detected_device
-            self._is_loaded = True
-        except ImportError as err:
-            raise EmbeddingConfigurationError(
-                "Local BGE embeddings require 'torch' and 'transformers'. "
-                f"Install missing dependencies: {err}"
-            ) from err
-        except Exception as err:
-            raise EmbeddingProviderError(f"Failed to load local model {self._model_name}: {err}") from err
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """
-        Embed an ordered list of document texts using local tensor inference.
-
-        Applies [CLS] pooling and L2 normalization.
-        """
-        if not texts:
-            return []
-
-        self._validate_batch_inputs(texts)
-        self._ensure_loaded()
-
-        all_vectors: list[list[float]] = []
-        total_batches = (len(texts) + self._batch_size - 1) // self._batch_size
-
-        for batch_idx in range(total_batches):
-            start = batch_idx * self._batch_size
-            end = min(start + self._batch_size, len(texts))
-            batch_texts = texts[start:end]
-
-            batch_vectors = self._encode_texts(batch_texts)
-            all_vectors.extend(batch_vectors)
-
-        return all_vectors
-
-    def embed_query(self, query: str) -> list[float]:
-        """
-        Embed a single search query, prepending BGE's asymmetric retrieval instruction.
-        """
-        valid_query = self._validate_text(query, "Search query")
-        instructed_query = f"{self.QUERY_INSTRUCTION}{valid_query}"
-        self._ensure_loaded()
-        vectors = self._encode_texts([instructed_query])
-        return vectors[0]
-
-    def _encode_texts(self, texts: list[str]) -> list[list[float]]:
-        """Execute forward pass, [CLS] token pooling, and L2 normalization."""
-        import torch
-
-        if self._tokenizer is None or self._model is None:
-            raise EmbeddingProviderError("Local model and tokenizer must be loaded before encoding.")
-
-        try:
-            with torch.no_grad():
-                encoded_inputs = self._tokenizer(
-                    texts,
-                    padding=True,
-                    truncation=True,
-                    max_length=512,
-                    return_tensors="pt",
-                ).to(self._device)
-
-                model_output = self._model(**encoded_inputs)
-                # BGE uses first token [CLS] representation
-                sentence_embeddings = model_output[0][:, 0]
-                # L2 normalize vectors to unit hypersphere
-                normalized = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
-
-                vectors = normalized.cpu().tolist()
-
-                # Verify dimensionality
-                for v_idx, vec in enumerate(vectors):
-                    if len(vec) != self._dimension:
-                        raise EmbeddingDimensionError(
-                            f"Vector at index {v_idx} has {len(vec)} dimensions; expected {self._dimension}."
-                        )
-
-                return vectors
-        except EmbeddingDimensionError:
-            raise
-        except Exception as err:
-            raise EmbeddingProviderError(f"Local BGE inference error: {err}") from err
-
-
 # ── Provider Factory ────────────────────────────────────────────────────────
 
 
@@ -535,46 +349,22 @@ def get_embedding_provider(
     settings: Settings | None = None,
 ) -> BaseEmbeddingProvider:
     """
-    Factory function instantiating the authoritative embedding provider from configuration.
+    Factory function instantiating the OpenAI embedding provider from configuration.
 
-    Enforces provider-owned dimensionality:
-    - For OpenAI: uses configured dimension (e.g. 1536 for text-embedding-3-large).
-    - For Local BGE: uses native model dimension (e.g. 1024 for bge-large-en-v1.5).
-      If the configured dimension mismatches the provider's native dimension,
-      raises EmbeddingConfigurationError rather than silently overriding.
-
-    Phase B3 (Weaviate Indexer) must read ``provider.dimension`` to configure
-    collection vector dimensions.
+    The configured ``embedding_dimension`` is authoritative (e.g. 1536 for
+    text-embedding-3-large). Phase B3 (Weaviate Indexer) reads
+    ``provider.dimension`` to configure collection vector dimensions.
     """
     cfg = settings or get_settings()
 
-    if cfg.embedding_provider == "openai":
-        if not cfg.openai_api_key or not cfg.openai_api_key.strip():
-            raise EmbeddingConfigurationError(
-                "OpenAI API key is required when embedding_provider='openai'. "
-                "Set OPENAI_API_KEY environment variable or in .env file."
-            )
-        return OpenAIEmbeddingProvider(
-            api_key=cfg.openai_api_key,
-            model_name=cfg.embedding_model,
-            dimension=cfg.embedding_dimension,
+    if not cfg.openai_api_key or not cfg.openai_api_key.strip():
+        raise EmbeddingConfigurationError(
+            "OpenAI API key is required for embeddings. "
+            "Set OPENAI_API_KEY environment variable or in .env file."
         )
 
-    if cfg.embedding_provider == "local_bge":
-        native_dim = BGE_NATIVE_DIMENSIONS.get(cfg.embedding_model, 1024)
-        if cfg.embedding_dimension != native_dim:
-            raise EmbeddingConfigurationError(
-                f"Configured embedding_dimension ({cfg.embedding_dimension}) does not match "
-                f"local model {cfg.embedding_model} native dimension ({native_dim}). "
-                f"Local BGE requires authoritative native dimensionality. "
-                f"Set EMBEDDING_DIMENSION={native_dim} in configuration to use this provider."
-            )
-        return LocalBGEEmbeddingProvider(
-            model_name=cfg.embedding_model,
-            dimension=native_dim,
-        )
-
-    raise EmbeddingConfigurationError(
-        f"Unsupported embedding provider: '{cfg.embedding_provider}'. "
-        "Supported providers are 'openai' and 'local_bge'."
+    return OpenAIEmbeddingProvider(
+        api_key=cfg.openai_api_key,
+        model_name=cfg.embedding_model,
+        dimension=cfg.embedding_dimension,
     )

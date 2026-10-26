@@ -395,7 +395,11 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = get_settings()
-    logger.info("Loaded settings: provider=%s, model=%s, dimension=%d", settings.embedding_provider, settings.embedding_model, settings.embedding_dimension)
+    logger.info(
+        "Loaded settings: model=%s, dimension=%d",
+        settings.embedding_model,
+        settings.embedding_dimension,
+    )
 
     provider = get_embedding_provider(settings)
 

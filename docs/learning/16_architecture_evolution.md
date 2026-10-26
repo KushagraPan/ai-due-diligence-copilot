@@ -26,7 +26,7 @@ flowchart TD
     end
 
     subgraph StorageEvolution["2. Vector Space & Storage Invariants"]
-        P5["Phase 5: Dense Embeddings (OpenAI text-embedding-3-large)<br/>- 1,536-dim Matryoshka reduction; Local BGE retained as optional"]
+        P5["Phase 5: Dense Embeddings (OpenAI text-embedding-3-large)<br/>- 1,536-dim Matryoshka reduction"]
         P6["Phase 6: Weaviate Cloud BYOV & Corpus Rebuild<br/>- Rebuilt canonical corpus: 11,008 elements -> 1,984 chunks -> 1,984 vectors<br/>- 10-point pre-indexing invariant gate; deterministic UUIDv5"]
     end
 
@@ -36,7 +36,7 @@ flowchart TD
     end
 
     subgraph RerankingEvolution["4. Reranker Revolution (Cross-Encoder -> LLM)"]
-        P9["Phase 9: Removal of Cross-Encoders & Migration to LLM Reranker (B5)<br/>- Discovered: 50.6s CPU latency, 512-token table truncation, narrative bias<br/>- Solution: Replaced BGE/Ettin with gpt-4o-mini (10 principles, Top-7 output)"]
+        P9["Phase 9: Removal of Cross-Encoders & Migration to LLM Reranker (B5)<br/>- Discovered: 50.6s CPU latency, 512-token table truncation, narrative bias<br/>- Solution: Replaced cross-encoders with gpt-4o-mini (10 principles, Top-7 output)"]
     end
 
     subgraph GenerationEvolution["5. Grounded Generation & Citation Verification"]
@@ -93,7 +93,7 @@ flowchart TD
 
 ### Phase 5 & 6: Vector Indexing & Corpus Rebuild Baseline
 - **The Evolution:**
-  - Embedding Provider: OpenAI `text-embedding-3-large` Matryoshka-reduced to 1,536 dimensions. Local BGE (`bge-large-en-v1.5`, 1,024 dims) was retained as an optional local fallback.
+  - Embedding Provider: OpenAI `text-embedding-3-large` Matryoshka-reduced to 1,536 dimensions.
   - Weaviate Cloud: Implemented BYOV (`Configure.Vectorizer.none()`) in [`weaviate_store.py`](../../src/due_diligence/retrieval/weaviate_store.py) with `hfresh` vector indexing and BM25 inverted indexing across 21 schema properties.
   - **Corpus Rebuild (2026-09-28):** Following the Q06 boundary and layout fixes, the corpus was completely rebuilt and re-indexed:
     - Elements: Reconciled from 11,036 to **11,008 elements**.
@@ -120,9 +120,9 @@ On **2026-09-29**, the cross-encoder reranking architecture was completely elimi
 WHY CROSS-ENCODERS WERE DEPRECATED:
 
 1. Severe CPU Latency:
-   - BAAI/bge-reranker-large took ~50.6 seconds per query on 4 CPU threads.
+   - The large cross-encoder took ~50.6 seconds per query on 4 CPU threads.
    - Initial cold weight load took 1,157 seconds (~19.3 minutes).
-   - Ettin-17M reduced latency to 1.01s but lacked financial schedule discrimination.
+   - The lightweight cross-encoder reduced latency to 1.01s but lacked financial schedule discrimination.
 
 2. Severe 512-Token Truncation:
    - 28% of candidate table pairs exceeded the 512-token ceiling of cross-encoders.
@@ -207,11 +207,11 @@ WHY CROSS-ENCODERS WERE DEPRECATED:
 | **Table Captions** | Nearest line using `istitle()` | Guarded by `is_valid_table_caption()` | Prevents Total rows from masquerading as table captions |
 | **Chunking Engine** | Naive character splitting | Layout-aware chunker with repeated headers | Preserves 2D table schemas and enforces hard schedule boundaries |
 | **Corpus Baseline** | 1,988 chunks / vectors | **1,984 chunks / vectors** | Rebuilt post-Q06 boundary and layout fixes |
-| **Embedding Model** | Local BGE default | **OpenAI `text-embedding-3-large` (1,536 dims)** | Higher retrieval fidelity; local BGE retained as optional |
+| **Embedding Model** | Local model default | **OpenAI `text-embedding-3-large` (1,536 dims)** | Higher retrieval fidelity |
 | **Query Rewriter** | `gpt-4o` (shared `generation_model`) | **Dedicated `gpt-4o-mini` (`query_rewriter_model`)** | >80% latency & cost reduction on conversational queries with zero quality loss |
 | **Retrieval Pool** | Top-25 ($\alpha = 0.60$) | **Top-40 ($\alpha = 0.50$)** | Higher candidate recall across multi-page notes; balanced fusion |
 | **Entity Scoping** | No filtering (Subsidiary leakage) | **`filter_subsidiary_candidates()`** | Prevents subsidiary numbers (e.g. HDBFSL) from polluting bank queries |
-| **Reranker (B5)** | **Cross-Encoders (BGE-large / Ettin)** | **LLM Reranker (`gpt-4o-mini`)** | Eliminated 50.6s CPU latency, 512-token table truncation, and prose bias |
+| **Reranker (B5)** | **Cross-Encoders** | **LLM Reranker (`gpt-4o-mini`)** | Eliminated 50.6s CPU latency, 512-token table truncation, and prose bias |
 | **Reranker Budget** | Top-5 evidence passages | **Top-7 evidence passages** | Accommodates multi-chunk financial evidence |
 | **Statement Labels** | Raw chunk text | Injected `[STANDALONE ...]` labels in B6 | Enforces Standalone vs. Consolidated disambiguation in B7 |
 | **Grounded Generator (B7)** | `gpt-4o` (general prompt) | **`gpt-4o` with structured claims + evidence IDs** | Enforces zero hallucination, strict unit fidelity, and explicit claim/evidence mapping |

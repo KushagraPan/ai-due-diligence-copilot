@@ -73,10 +73,6 @@ class Settings(BaseSettings):
     )
 
     # ── Embedding Provider ───────────────────────────────────────────
-    embedding_provider: Literal["openai", "local_bge"] = Field(
-        default="openai",
-        description="Embedding backend: 'openai' (API) or 'local_bge' (on-device)",
-    )
     embedding_model: str = Field(
         default="text-embedding-3-large",
         description="Model identifier used for both document and query embeddings",
@@ -88,7 +84,7 @@ class Settings(BaseSettings):
     )
     openai_api_key: str | None = Field(
         default=None,
-        description="OpenAI API key (required when embedding_provider='openai')",
+        description="OpenAI API key (required for embeddings and LLM calls)",
     )
 
     # ── Retrieval & Reranking ────────────────────────────────────────

@@ -17,7 +17,6 @@ from due_diligence.retrieval.context_builder import (
 )
 from due_diligence.retrieval.embeddings import (
     BaseEmbeddingProvider,
-    LocalBGEEmbeddingProvider,
     OpenAIEmbeddingProvider,
     get_embedding_provider,
 )
@@ -66,7 +65,6 @@ __all__ = [
     "EvidenceItem",
     "IndexingPayload",
     "LLMReranker",
-    "LocalBGEEmbeddingProvider",
     "OmittedEvidenceItem",
     "OpenAIEmbeddingProvider",
     "PipelineQueryResult",

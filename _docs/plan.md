@@ -47,7 +47,7 @@ This roadmap outlines the phased development plan for the AI Due Diligence Co-pi
 The original engineering implementation plan is superseded by [`architecture.md`](architecture.md) and [`rag_architecture.md`](rag_architecture.md).
 
 - [x] **Phase B1: Core Configuration & Retrieval Schemas**
-  - Implemented centralized settings in `src/due_diligence/core/config.py` using `pydantic-settings` `BaseSettings` (`weaviate_url`, `weaviate_api_key`, `embedding_provider`, `embedding_model`, `embedding_dimension`, `hybrid_alpha=0.60`, `retrieval_top_n=25`, `reranker_model`, `rerank_top_k=5`, `generation_model`) loaded from environment with zero hardcoded secrets.
+  - Implemented centralized settings in `src/due_diligence/core/config.py` using `pydantic-settings` `BaseSettings` (`weaviate_url`, `weaviate_api_key`, `embedding_model`, `embedding_dimension`, `hybrid_alpha=0.60`, `retrieval_top_n=25`, `reranker_model`, `rerank_top_k=5`, `generation_model`) loaded from environment with zero hardcoded secrets.
   - Implemented system boundary contract and retrieval models in `src/due_diligence/retrieval/schemas.py`:
     - `IndexingPayload`: Immutable Pydantic model bridging `Chunk` and `ValidatedDocument` metadata for Weaviate indexing, including automated table metadata unpacking (`is_table`, `table_headers`, `table_caption`).
     - `RetrievalResult`: Immutable typed candidate representation emitted by hybrid retrieval for consumption by reranker and context builder.
@@ -56,8 +56,8 @@ The original engineering implementation plan is superseded by [`architecture.md`
 - [x] **Phase B2: Dense Embedding Provider Abstraction**
   - Implemented `BaseEmbeddingProvider` abstract interface in `src/due_diligence/retrieval/embeddings.py` defining the contract for `embed_documents(texts: list[str]) -> list[list[float]]` and `embed_query(query: str) -> list[float]` with strict input-to-output order preservation and dimension invariants.
   - Implemented `OpenAIEmbeddingProvider` using modern OpenAI SDK with Matryoshka dimension reduction (1536 dims), batch slicing (default 64), response index sorting, and custom exponential backoff retry with full jitter on transient rate limits / 5xx errors.
-  - Implemented `LocalBGEEmbeddingProvider` enforcing native model dimensionality (1024 dims for `bge-large-en-v1.5`), asymmetric retrieval query prefix injection (`Represent this sentence for searching relevant passages: `), and unit L2 vector normalization.
-  - Implemented authoritative factory `get_embedding_provider()` enforcing provider-owned dimensionality: validates configured `embedding_dimension` against provider native capabilities and raises `EmbeddingConfigurationError` on mismatch without silent overrides.
+  - Implemented an optional local embedding provider (removed 2026-10-26) enforcing native model dimensionality (1,024 dims), asymmetric retrieval query prefix injection (`Represent this sentence for searching relevant passages: `), and unit L2 vector normalization.
+  - Implemented authoritative factory `get_embedding_provider()` with provider-owned dimensionality validation and explicit `EmbeddingConfigurationError` on configuration mismatch.
   - Added 33 unit tests in `tests/unit/test_embeddings.py` covering validation, offline mocking, scrambled index re-sorting, retry backoff, exhausted retry errors, native dimension lookups, and factory enforcement. Total test suite: 175 tests passing. Strict mypy & ruff: 0 errors.
 - [x] **Phase B3: Weaviate Cloud Indexer & Collection Manager**
   - Implemented `src/due_diligence/retrieval/weaviate_store.py` providing complete client lifecycle management, typed exception hierarchy (`WeaviateStoreError`, `WeaviateConnectionError`, `WeaviateSchemaError`, `WeaviateAlignmentError`, `WeaviateBatchIndexError`, `WeaviateVerificationError`), pre-indexing invariant validation (enforcing all 10 pre-flight checks), property mapping (`build_weaviate_properties`), and idempotent batch indexing (`index_canonical_corpus`).
@@ -79,15 +79,15 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Added 22 mock-based unit tests in `tests/unit/test_retriever.py` covering initialization, empty/whitespace queries, pipeline execution, table reconstruction, deterministic ordering, tie-breaking, metadata filtering, parameter overrides, empty results, and upstream error propagation.
   - Total test suite: 238 unit tests passing. Strict mypy and ruff: 0 errors. Live Weaviate retrieval deliberately deferred per instructions.
 - [x] **Phase B5: Cross-Encoder Reranker Layer & Interactive Optimization**
-  - Implemented `src/due_diligence/retrieval/reranker.py` providing `BaseReranker`, `CrossEncoderReranker`, and aliases `BGEReranker` and `EttinReranker` using Hugging Face / Sentence Transformers.
+  - Implemented `src/due_diligence/retrieval/reranker.py` providing `BaseReranker`, `CrossEncoderReranker`, and cross-encoder reranker aliases using Hugging Face / Sentence Transformers.
   - Implemented two production profiles configurable via `Settings`:
-    - **Interactive Demo Profile (Default):** `cross-encoder/ettin-reranker-17m-v1` (~70 MB, 17M parameters, ModernBERT architecture). Scores pruned B4 candidates (`candidate_count=10`, `batch_size=16`) in **612.35 ms / query** on CPU with **18.26 s** first-time load time.
-    - **Reference Quality Baseline:** `BAAI/bge-reranker-large` (2.24 GB, 560M parameters). Scores full candidate pool (`candidate_count=25`) in **50.63 s / query** on CPU with **1,157.01 s** load time.
+    - **Interactive Demo Profile (Default):** A lightweight cross-encoder (~70 MB, 17M parameters, ModernBERT architecture). Scores pruned B4 candidates (`candidate_count=10`, `batch_size=16`) in **612.35 ms / query** on CPU with **18.26 s** first-time load time.
+    - **Reference Quality Baseline:** A large cross-encoder (2.24 GB, 560M parameters). Scores full candidate pool (`candidate_count=25`) in **50.63 s / query** on CPU with **1,157.01 s** load time.
   - Added typed data model `RerankedResult` in `src/due_diligence/retrieval/schemas.py` preserving the original Weaviate B4 hybrid score in `score` while attaching the cross-encoder relevance score in `rerank_score`.
   - Added configurable settings in `src/due_diligence/core/config.py`: `rerank_candidate_count` (default: 10), `reranker_batch_size` (default: 16), `reranker_max_length` (default: 512), and `reranker_device` ("auto", "cpu", "cuda").
   - Enforced lazy model loading, CPU/CUDA auto-detection, `torch.inference_mode()`, and deterministic sorting (`-rerank_score, chunk_id`).
   - Integrated candidate count pruning into `RetrievalPipeline` and `cli.py` (`--rerank-candidates`).
-  - Completed real model validation across all 6 standard HDFC queries: average Top-5 overlap with BGE reference baseline is **53.3%** (reaching 80.0% on financial queries). Weaviate collection verified unchanged at 1,988 objects. Report persisted to `data/processed/hdfc_b5_ettin_validation_2026-09-26.json`.
+  - Completed real model validation across all 6 standard HDFC queries: average Top-5 overlap with the large cross-encoder baseline is **53.3%** (reaching 80.0% on financial queries). Weaviate collection verified unchanged at 1,988 objects. Report persisted under `data/processed/`.
   - Total test suite: 350 unit tests passing. Strict mypy and ruff: 0 errors across 52 source files.
 - [x] **Phase B6: Evidence Context Builder**
   - Implemented `EvidenceContextBuilder` (alias `ContextBuilder`) in `src/due_diligence/retrieval/context_builder.py` transforming B5 Top-K reranked candidates into structured, sanitized XML context blocks for Phase B7 Grounded Generation.
@@ -134,10 +134,10 @@ The original engineering implementation plan is superseded by [`architecture.md`
 - [x] **Phase B9 follow-up: B6 explicit statement-scope labels (Standalone vs. Consolidated fix)**
   - (Previous session work; retained and exercised by the new B5 below.)
 - [x] **Phase B5 re-architecture: cross-encoder removed, dedicated LLM reranker (2026-09-29)**
-  - Deleted `CrossEncoderReranker`, `BGEReranker`/`EttinReranker` aliases, `TwoStageReranker`, and all `sentence-transformers`/`torch`/`transformers` production paths from `retrieval/reranker.py` (torch/transformers stay for LocalBGE embeddings). Removed `sentence-transformers` from `pyproject.toml`; `uv lock` regenerated.
+  - Deleted `CrossEncoderReranker`, cross-encoder reranker aliases, `TwoStageReranker`, and all `sentence-transformers`/`torch`/`transformers` production paths from `retrieval/reranker.py` (the optional local embedding provider was removed later). Removed `sentence-transformers` from `pyproject.toml`; `uv lock` regenerated.
   - New chunk-ID output contract (`{"ranked_chunk_ids": [...]}` with strict validation, dedup, deterministic fallback) replacing integer indices; `original_query` threaded through `BaseReranker` → `LLMReranker` → `RetrievalPipeline.run()`.
   - Rewrote `prompts/reranker.py` with 10 ranking principles (answerability, exact evidence, primary statements, entity/metric scope, tables first-class, multi-page, citation usefulness, conversational, negative-query) and full chunk text (4000-char cap with marker).
-  - Config: `reranker_type` narrowed to `"llm"`; removed `reranker_model`, `reranker_batch_size`, `reranker_max_length`, `reranker_device`. `RetrievalPipeline` always builds `LLMReranker`. Fixed stale Ettin references in `pipeline.py`, `cli.py`, `run_golden_benchmark.py`, evaluator B5 latency label, and `_docs/rag_architecture.md` §7.
+  - Config: `reranker_type` narrowed to `"llm"`; removed `reranker_model`, `reranker_batch_size`, `reranker_max_length`, `reranker_device`. `RetrievalPipeline` always builds `LLMReranker`. Fixed stale cross-encoder references in `pipeline.py`, `cli.py`, `run_golden_benchmark.py`, evaluator B5 latency label, and `_docs/rag_architecture.md` §7.
   - Tests: rewrote `tests/unit/test_reranker.py` (44 LLM-only tests, mocked client); updated `test_config.py`, `test_retrieval_pipeline.py`, `test_cli_integration.py`. Full suite: 484 unit+integration pass; ruff + mypy strict clean. Pre-existing set-1 golden eval failures (version string, stale chunk IDs) untouched.
   - Live validation `data/processed/b9_llm_reranker_validation_20260929.{json,md}` (Q01–Q25, unchanged goldens/B4/B6/B7/B8): 14/25 evaluator pass vs 17/25 prior run — NOT claimed as improvement (see analysis: B4 outputs byte-identical; flips are B5-composition + B7 variance + metric thresholds; Q12 net-over-gross is a genuine B7 selection flip with correct evidence present).
 - [x] **Steps 1–6: Q06 Total-row fix, citation heading, B8 tripwire, golden v1.0.1, full re-run (2026-09-28)**
@@ -186,8 +186,8 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Verified both public exchange copies (NSE and BSE) byte-for-byte against the pinned SHA-256; README lists NSE as primary and BSE as alternate because BSE may block direct access.
   - Refreshed README metadata: test badge/comment to 570, 678-page exchange-filing wording, bundle-page note on example citations, explicit `--strict-checksum` commands, and `data/raw` tracking note.
   - README onboarding pass: start-here paths, tested fresh-clone setup, `uv sync --extra dev`, live-service setup, per-stage success checkpoints, and troubleshooting.
-  - Fresh-clone fixes: declared `numpy` as a core dependency; PDF-dependent table tests and optional local-BGE tests now skip cleanly when the PDF/torch are absent; CLI closes the Weaviate client and shows concise 503 guidance instead of a traceback.
-  - Fresh-clone validation on Python 3.11 and 3.12: `uv sync --extra dev` succeeds; without the PDF/torch, `551 passed, 19 skipped`; with both available in the main checkout, `570 passed`.
+  - Fresh-clone fixes: declared `numpy` as a core dependency; PDF-dependent table tests now skip cleanly when the PDF is absent; CLI closes the Weaviate client and shows concise 503 guidance instead of a traceback.
+  - Fresh-clone validation on Python 3.11 and 3.12: `uv sync --extra dev` succeeds; without the PDF, `551 passed, 19 skipped`; with the PDF available in the main checkout, `570 passed`.
   - Live validation (2026-10-26): corrected `WEAVIATE_URL` to the active EU Central REST endpoint; `/v1/meta` and readiness returned 200; the `DiligenceChunk` aggregate count is 1,984; the branch question returned 9,689 branches with verified citations; the NovaPay negative question returned an explicit "not disclosed" refusal. Source PDF verified with `--strict-checksum` (678 pages).
   - Tests: 570 pass; ruff + mypy strict clean.
 - [x] **B7/B8 structured claim-to-evidence mapping (2026-10-26)**
@@ -197,6 +197,11 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Added regressions for all one-to-many/many-to-many patterns, unsupported second citations, unknown IDs, and the HDFC branch/DBU output.
   - Tests: 581 pass; ruff + mypy strict clean.
   - README metadata corrected from 570 to 581 tests; added the concrete mock/injection mechanisms that let the suite run without OpenAI or Weaviate credentials.
+- [x] **Removed unused local embedding and cross-encoder paths (2026-10-26)**
+  - Removed the optional local embedding provider, its environment setting, provider exports, tests, and current documentation. `get_embedding_provider()` now always builds `OpenAIEmbeddingProvider`; `text-embedding-3-large` at 1,536 dimensions is the only embedding path.
+  - Genericized historical cross-encoder references in current and historical documentation while preserving the architectural lesson: local cross-encoders were removed for CPU latency, 512-token table truncation, and dependency footprint.
+  - Deleted the ignored historical B5 cross-encoder validation JSONs and archived validation scripts.
+  - Tests: 569 pass; ruff + mypy strict clean.
 
 ---
 

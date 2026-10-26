@@ -2,8 +2,7 @@
 Unit tests for dense embedding provider abstraction and implementations.
 
 Verifies BaseEmbeddingProvider validation, OpenAIEmbeddingProvider with mocked SDK,
-LocalBGEEmbeddingProvider with mocked/injected model, retry behaviors,
-dimension invariant enforcement, and the authoritative provider factory.
+retry behaviors, dimension invariant enforcement, and the provider factory.
 """
 
 from typing import Any
@@ -14,13 +13,11 @@ import pytest
 
 from due_diligence.core.config import Settings
 from due_diligence.retrieval.embeddings import (
-    BGE_NATIVE_DIMENSIONS,
     BaseEmbeddingProvider,
     EmbeddingConfigurationError,
     EmbeddingDimensionError,
     EmbeddingInputError,
     EmbeddingProviderError,
-    LocalBGEEmbeddingProvider,
     OpenAIEmbeddingProvider,
     get_embedding_provider,
 )
@@ -279,131 +276,16 @@ class TestOpenAIEmbeddingProvider:
         assert mock_client.embeddings.create.call_count == 1
 
 
-# ── Local BGE Provider Tests ────────────────────────────────────────────
-
-
-class TestLocalBGEEmbeddingProvider:
-    """Verify LocalBGEEmbeddingProvider native dimensions, query prefix, and fake inference."""
-
-    def test_native_dimension_lookup(self) -> None:
-        assert BGE_NATIVE_DIMENSIONS["BAAI/bge-large-en-v1.5"] == 1024
-        assert BGE_NATIVE_DIMENSIONS["BAAI/bge-base-en-v1.5"] == 768
-        assert BGE_NATIVE_DIMENSIONS["BAAI/bge-small-en-v1.5"] == 384
-
-    def test_dimension_mismatch_raises_configuration_error(self) -> None:
-        """Explicitly verifying user mandate: BGE Large (1024) must reject configured 1536."""
-        with pytest.raises(EmbeddingConfigurationError, match="Configured dimension \\(1536\\) does not match"):
-            LocalBGEEmbeddingProvider(
-                model_name="BAAI/bge-large-en-v1.5",
-                dimension=1536,
-            )
-
-    def test_matching_dimension_accepted(self) -> None:
-        provider = LocalBGEEmbeddingProvider(
-            model_name="BAAI/bge-large-en-v1.5",
-            dimension=1024,
-        )
-        assert provider.dimension == 1024
-        assert provider.model_name == "BAAI/bge-large-en-v1.5"
-
-    def test_default_dimension_is_native_1024(self) -> None:
-        provider = LocalBGEEmbeddingProvider(model_name="BAAI/bge-large-en-v1.5")
-        assert provider.dimension == 1024
-
-    def test_embed_documents_empty_returns_empty(self) -> None:
-        provider = LocalBGEEmbeddingProvider(model_name="BAAI/bge-large-en-v1.5")
-        assert provider.embed_documents([]) == []
-
-    def test_injected_model_and_tokenizer_document_embedding(self) -> None:
-        """Test inference pipeline with injected test doubles (no model download)."""
-        torch = pytest.importorskip("torch")
-
-        # Mock tokenizer returning PyTorch tensor dict
-        mock_tokenizer = MagicMock()
-        mock_inputs = {
-            "input_ids": torch.tensor([[101, 102], [101, 103]]),
-            "attention_mask": torch.tensor([[1, 1], [1, 1]]),
-        }
-        mock_tokenizer.return_value.to.return_value = mock_inputs
-
-        # Mock model returning hidden states: shape (2, 2, 1024)
-        mock_model = MagicMock()
-        mock_hidden_states = torch.ones((2, 2, 1024))
-        mock_model.return_value = (mock_hidden_states,)
-
-        provider = LocalBGEEmbeddingProvider(
-            model_name="BAAI/bge-large-en-v1.5",
-            tokenizer=mock_tokenizer,
-            model=mock_model,
-            device="cpu",
-        )
-
-        texts = ["Document passage 1", "Document passage 2"]
-        vectors = provider.embed_documents(texts)
-
-        assert len(vectors) == 2
-        assert len(vectors[0]) == 1024
-        assert len(vectors[1]) == 1024
-
-        # Verify tokenizer was called with raw passage texts
-        mock_tokenizer.assert_called_once_with(
-            texts,
-            padding=True,
-            truncation=True,
-            max_length=512,
-            return_tensors="pt",
-        )
-
-    def test_injected_model_and_tokenizer_query_embedding_appends_instruction(self) -> None:
-        """Verify that embed_query prepends BGE's asymmetric query instruction."""
-        torch = pytest.importorskip("torch")
-
-        mock_tokenizer = MagicMock()
-        mock_inputs = {
-            "input_ids": torch.tensor([[101, 102]]),
-            "attention_mask": torch.tensor([[1, 1]]),
-        }
-        mock_tokenizer.return_value.to.return_value = mock_inputs
-
-        mock_model = MagicMock()
-        mock_hidden_states = torch.ones((1, 2, 1024))
-        mock_model.return_value = (mock_hidden_states,)
-
-        provider = LocalBGEEmbeddingProvider(
-            model_name="BAAI/bge-large-en-v1.5",
-            tokenizer=mock_tokenizer,
-            model=mock_model,
-            device="cpu",
-        )
-
-        query = "What was the capital adequacy ratio?"
-        vector = provider.embed_query(query)
-
-        assert len(vector) == 1024
-        # Verify asymmetric instruction was prepended
-        expected_call_text = [
-            f"Represent this sentence for searching relevant passages: {query}"
-        ]
-        mock_tokenizer.assert_called_once_with(
-            expected_call_text,
-            padding=True,
-            truncation=True,
-            max_length=512,
-            return_tensors="pt",
-        )
-
-
 # ── Provider Factory Tests (get_embedding_provider) ─────────────────────
 
 
 class TestGetEmbeddingProviderFactory:
-    """Verify authoritative provider selection and dimensionality validation."""
+    """Verify the OpenAI provider factory and credential validation."""
 
     def test_openai_provider_created_with_authoritative_1536(self) -> None:
         settings = Settings(
             weaviate_url="https://test.weaviate.network",
             weaviate_api_key="test-key",
-            embedding_provider="openai",
             embedding_model="text-embedding-3-large",
             embedding_dimension=1536,
             openai_api_key="sk-valid-key",
@@ -417,43 +299,10 @@ class TestGetEmbeddingProviderFactory:
         settings = Settings(
             weaviate_url="https://test.weaviate.network",
             weaviate_api_key="test-key",
-            embedding_provider="openai",
             openai_api_key=None,
         )
         with pytest.raises(EmbeddingConfigurationError, match="OpenAI API key is required"):
             get_embedding_provider(settings)
-
-    def test_local_bge_mismatched_dimension_raises_configuration_error(self) -> None:
-        """
-        User mandate: Do NOT silently override Settings.embedding_dimension.
-        If user configures local_bge with default 1536, raise EmbeddingConfigurationError.
-        """
-        settings = Settings(
-            weaviate_url="https://test.weaviate.network",
-            weaviate_api_key="test-key",
-            embedding_provider="local_bge",
-            embedding_model="BAAI/bge-large-en-v1.5",
-            embedding_dimension=1536,  # Default from config is 1536
-        )
-        with pytest.raises(
-            EmbeddingConfigurationError,
-            match="Configured embedding_dimension \\(1536\\) does not match local model .* native dimension \\(1024\\)",
-        ):
-            get_embedding_provider(settings)
-
-    def test_local_bge_correct_native_dimension_succeeds(self) -> None:
-        """When user explicitly configures EMBEDDING_DIMENSION=1024, local_bge succeeds."""
-        settings = Settings(
-            weaviate_url="https://test.weaviate.network",
-            weaviate_api_key="test-key",
-            embedding_provider="local_bge",
-            embedding_model="BAAI/bge-large-en-v1.5",
-            embedding_dimension=1024,
-        )
-        provider = get_embedding_provider(settings)
-        assert isinstance(provider, LocalBGEEmbeddingProvider)
-        assert provider.dimension == 1024
-        assert provider.model_name == "BAAI/bge-large-en-v1.5"
 
 
 class TestVectorDiagnostics:

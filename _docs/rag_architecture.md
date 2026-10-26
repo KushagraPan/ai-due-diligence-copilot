@@ -150,8 +150,8 @@ Single-retriever architectures consistently fail in virtual data rooms. Dense ve
 * **Why It Exists:** Connects queries to passages that share meaning but use different vocabulary (e.g., query *"financial health"* matching passage *"solvency and capital adequacy ratios"*).
 * **Embedding Model Requirements:**
   - **Context Window:** Minimum 512 tokens; preferably 2048+ tokens to avoid truncation of comprehensive financial disclosure chunks.
-  - **Domain Sensitivity:** Strong performance on technical, legal, and financial prose (e.g., `text-embedding-3-large`, `bge-large-en-v1.5`, or `voyage-finance-2`).
-  - **Symmetric vs. Asymmetric Retrieval:** Must support query instruction prefixes (e.g., `Represent this query for retrieving relevant financial documentation:`) if using asymmetric models like BGE.
+  - **Domain Sensitivity:** Strong performance on technical, legal, and financial prose (e.g., `text-embedding-3-large` or `voyage-finance-2`).
+  - **Symmetric vs. Asymmetric Retrieval:** Must support query instruction prefixes (e.g., `Represent this query for retrieving relevant financial documentation:`) if using asymmetric models.
 * **Consistency Invariant:** The exact same embedding model, normalization, and dimensional reduction (if any) used during offline indexing must be used for query vector generation.
 * **Strengths:** Captures paraphrased intent; robust against minor misspellings; understands financial conceptual relationships.
 * **Weaknesses:** **Blind to exact numbers and dates.** In high-dimensional semantic space, `"FY2024-25"` and `"FY2025-26"` have a cosine similarity of $\approx 0.98$ because they appear in identical syntactic contexts. Vector search cannot distinguish which year is which without metadata or keyword assistance.
@@ -317,8 +317,8 @@ value"*) is actually satisfied by the passage — including entity scope
 minimum), and primary-statement priority — rather than just containing similar
 financial jargon. Tables are first-class evidence, never penalized for being tables.
 
-> Historical note: B5 previously used local cross-encoder profiles (Ettin-17M demo,
-> BGE-large reference, and a two-stage hybrid). Those were removed because
+> Historical note: B5 previously used local cross-encoder profiles (a lightweight model,
+> a large reference model, and a two-stage hybrid). Those were removed because
 > cross-encoders systematically demoted dense financial tables/schedules. The
 > measurements below are preserved as historical records only.
 
@@ -333,8 +333,8 @@ to B4 input order. No local weights, no model loading, no cross-encoder fallback
 | Profile / Model | Candidates Scored ($N$) | Output Evidence ($K$) | Historical Latency Reference |
 | :--- | :--- | :--- | :--- |
 | **LLM (gpt-4o-mini, current)** | **40** | **7** | measured per benchmark run (see validation reports) |
-| Ettin-17M (removed) | 25 | 5 | ~1.05 s/query CPU (historical) |
-| BGE-Large (removed) | 25 | 5 | ~50.6 s/query CPU (historical) |
+| Lightweight cross-encoder (removed) | 25 | 5 | ~1.05 s/query CPU (historical) |
+| Large cross-encoder (removed) | 25 | 5 | ~50.6 s/query CPU (historical) |
 
 ### 7.3 Configurable Defaults ($N$, $C$, and $K$)
 * **Top-$N$ Retrieval ($N = 40$):** Initial candidate budget retrieved by Weaviate hybrid search (BM25 + vector).
@@ -640,10 +640,10 @@ The following 25 ground-truth test cases are tailored to the HDFC Bank FY2025-26
 | **Evidence Context ($K$)** | **Decided (Live)** | **$K = 7$** | Context budget selected by LLM reranking. Configured in `Settings.rerank_top_k`. |
 | **Hybrid Balance ($\alpha$)** | **Decided (Live)** | **$\alpha = 0.50$** | 50% dense vector, 50% BM25 lexical. Balanced semantic discovery and exact term precision. |
 | **Query Rewriter Model** | **Decided (Live)** | **OpenAI `gpt-4o-mini`** | Dedicated model (`Settings.query_rewriter_model`). Fast, cost-efficient reference resolution across 4-turn window with zero-LLM fast path. |
-| **Reranker Model (B5)** | **Decided (Live)** | **OpenAI `gpt-4o-mini` (LLM Reranker)** | Single-stage LLM reranker evaluating 10 financial principles in JSON mode. Replaced cross-encoders (BGE/Ettin) to eliminate 50s CPU latency and 512-token table truncation. |
+| **Reranker Model (B5)** | **Decided (Live)** | **OpenAI `gpt-4o-mini` (LLM Reranker)** | Single-stage LLM reranker evaluating 10 financial principles in JSON mode. Replaced cross-encoders to eliminate 50s CPU latency and 512-token table truncation. |
 | **Grounded Generator (B7)** | **Decided (Live)** | **OpenAI `gpt-4o`** | High-fidelity synthesis in JSON mode enforcing 8 non-negotiable grounding rules and `[EX]` citations. |
 | **Citation Attribution (B8)** | **Decided (Live)** | **Deterministic Python (`CitationVerifier`)** | Verifies each claim against its evidence set via `check_claim_evidence_support()`, resolves nearest headings via `resolve_citation_heading()`, translates tokens to footnotes `[1]`, `[2]`. |
-| **Embeddings Model** | **Decided (Live)** | **OpenAI `text-embedding-3-large` (1,536 dims)** | High semantic accuracy on financial tables and terminology (1,984 objects indexed in Weaviate Cloud). Local BGE supported as optional offline fallback. |
+| **Embeddings Model** | **Decided (Live)** | **OpenAI `text-embedding-3-large` (1,536 dims)** | High semantic accuracy on financial tables and terminology (1,984 objects indexed in Weaviate Cloud). |
 
 ---
 

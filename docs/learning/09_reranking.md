@@ -20,7 +20,7 @@ Phase B5 bridges the gap between broad candidate recall and high-precision evide
 
 > [!IMPORTANT]
 > **Production Architecture Update (2026-09-29):**  
-> The project **no longer uses cross-encoders** (`bge-reranker-large`, `ettin-reranker-17m-v1`, or `sentence-transformers`) in production. Phase B5 is exclusively powered by the **LLM Reranker** (`LLMReranker`). Historical cross-encoder experiments are documented for pedagogical comparison in [Section 9: Historical / Experimental Architecture](#9-historical--experimental-architecture).
+> The project **no longer uses cross-encoders** in production. Phase B5 is exclusively powered by the **LLM Reranker** (`LLMReranker`). Historical cross-encoder experiments are documented for pedagogical comparison in [Section 9: Historical / Experimental Architecture](#9-historical--experimental-architecture).
 
 ---
 
@@ -238,7 +238,7 @@ When evaluating financial filings, LLM reranking solves fundamental flaws inhere
 
 ```
 ┌──────────────────────────────────────┬──────────────────────────────────────┐
-│ Traditional Cross-Encoders (BERT/BGE) │ LLM Reranker (gpt-4o-mini)           │
+│ Traditional Cross-Encoders           │ LLM Reranker (gpt-4o-mini)           │
 ├──────────────────────────────────────┼──────────────────────────────────────┤
 │ 512-Token Context Limit:             │ 128,000-Token Context Limit:         │
 │ Truncates large financial tables     │ Ingests entire tables, captions,     │
@@ -254,7 +254,7 @@ When evaluating financial filings, LLM reranking solves fundamental flaws inhere
 ├──────────────────────────────────────┼──────────────────────────────────────┤
 │ CPU Latency Bottleneck:              │ Fast API Parallelism:                │
 │ ~50.6 seconds per query on 4 CPU     │ ~1.3 to 1.5 seconds per query        │
-│ threads with BGE-large.              │ for all 40 candidates combined.      │
+│ threads with a large encoder.        │ for all 40 candidates combined.      │
 └──────────────────────────────────────┴──────────────────────────────────────┘
 ```
 
@@ -280,20 +280,20 @@ When evaluating financial filings, LLM reranking solves fundamental flaws inhere
 > **HISTORICAL ARCHIVE:**  
 > The sections below document the initial cross-encoder architecture tested during Phases B4 and B5 (September 2026). This architecture was deprecated and completely removed from the production codebase on **2026-09-29**. It is preserved here solely for architectural history and pedagogical contrast.
 
-### 9.1 The Initial Cross-Encoder Design (`bge-reranker-large`)
+### 9.1 The Initial Cross-Encoder Design
 Originally, Phase B5 utilized a local Hugging Face cross-encoder:
-- **Model:** `BAAI/bge-reranker-large` (560 Million parameters, ~2.24 GB weights).
+- **Model:** A large cross-encoder (560 million parameters, ~2.24 GB weights).
 - **Execution:** Local CPU inference via PyTorch (`torch.no_grad()`).
 - **Mechanism:** Concatenated `[query, chunk_text]` pairs into a 512-token sequence and computed cross-attention across all layers.
 
-### 9.2 The Ettin-17M Optimization Experiment
+### 9.2 The Lightweight Cross-Encoder Experiment
 Due to extreme latency on CPU (~50.6s per query), an experimental lightweight cross-encoder was evaluated:
-- **Model:** `cross-encoder/ettin-reranker-17m-v1` (17 Million parameters).
+- **Model:** A lightweight cross-encoder (17 million parameters).
 - **Results:** Reduced CPU inference latency from 50.6s to 1.01s per query (50x speedup), but suffered from lower semantic discrimination on complex financial schedules.
 
 ### 9.3 Historical Benchmark Data (Archived from 2026-09-26 Runs)
 
-| Metric | `bge-reranker-large` (Historical) | `ettin-reranker-17m-v1` (Historical) | Status |
+| Metric | Large Cross-Encoder (Historical) | Lightweight Cross-Encoder (Historical) | Status |
 | :--- | :--- | :--- | :--- |
 | **Model Parameters** | 560 Million | 17 Million | Deprecated |
 | **Cold Load Time** | 1,157 seconds (~19.3 min) | 20.6 seconds | Deprecated |

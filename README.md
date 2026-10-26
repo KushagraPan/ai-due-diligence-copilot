@@ -3,7 +3,7 @@
 **Source-grounded RAG for financial due diligence.** Ask a question about a 678-page exchange filing and get an answer where factual claims are tied to specific pages and sections — with citations checked by deterministic Python before they reach the user.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-581-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-569-brightgreen)](tests/)
 [![Lint: ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 [![Types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](https://mypy-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -229,7 +229,7 @@ The test suite is mocked and does not call Weaviate or OpenAI. The blank values 
 uv run pytest -q
 ```
 
-Expected: no failures. Tests that need the source PDF or optional `torch` skip automatically. You do not need a live cluster or real API keys for this step.
+Expected: no failures. Tests that need the source PDF skip automatically. You do not need a live cluster or real API keys for this step.
 
 The tests avoid live services by design:
 
@@ -355,12 +355,12 @@ Inside the interactive session:
 ## Testing
 
 ```bash
-uv run pytest -q          # 581 collected; PDF/torch tests skip if absent
+uv run pytest -q          # 569 collected; PDF tests skip if absent
 uv run ruff check src tests
 uv run mypy src
 ```
 
-These checks are offline and do not need a live Weaviate cluster or OpenAI key. The tests do need a `.env` file; the blank values from `.env.example` are enough. Tests that need the source PDF or optional `torch` skip when those are absent; with both installed, all 581 run.
+These checks are offline and do not need a live Weaviate cluster or OpenAI key. The tests do need a `.env` file; the blank values from `.env.example` are enough. Tests that need the source PDF skip when it is absent; with it available, all 569 run.
 
 The suite covers extraction and table parsing, layout invariants, chunk provenance, metadata preservation, hybrid retrieval, reranking fallbacks, context assembly, grounding rules, citation verification, refusal behavior, and the CLI.
 

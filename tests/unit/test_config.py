@@ -38,10 +38,6 @@ class TestSettingsDefaults:
         settings = Settings(**REQUIRED_ENV)  # type: ignore[arg-type]
         assert settings.log_level == "INFO"
 
-    def test_default_embedding_provider(self) -> None:
-        settings = Settings(**REQUIRED_ENV)  # type: ignore[arg-type]
-        assert settings.embedding_provider == "openai"
-
     def test_default_embedding_model(self) -> None:
         settings = Settings(**REQUIRED_ENV)  # type: ignore[arg-type]
         assert settings.embedding_model == "text-embedding-3-large"
@@ -97,10 +93,6 @@ class TestSettingsOverrides:
         settings = Settings(**REQUIRED_ENV, app_env="production")  # type: ignore[arg-type]
         assert settings.app_env == "production"
 
-    def test_override_embedding_provider_local(self) -> None:
-        settings = Settings(**REQUIRED_ENV, embedding_provider="local_bge")  # type: ignore[arg-type]
-        assert settings.embedding_provider == "local_bge"
-
     def test_override_hybrid_alpha(self) -> None:
         settings = Settings(**REQUIRED_ENV, hybrid_alpha=0.75)  # type: ignore[arg-type]
         assert settings.hybrid_alpha == pytest.approx(0.75)
@@ -148,10 +140,6 @@ class TestSettingsValidation:
     def test_invalid_app_env_raises(self) -> None:
         with pytest.raises(ValidationError):
             Settings(**REQUIRED_ENV, app_env="invalid_env")  # type: ignore[arg-type]
-
-    def test_invalid_embedding_provider_raises(self) -> None:
-        with pytest.raises(ValidationError):
-            Settings(**REQUIRED_ENV, embedding_provider="pinecone")  # type: ignore[arg-type]
 
     def test_hybrid_alpha_below_zero_raises(self) -> None:
         with pytest.raises(ValidationError):

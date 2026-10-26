@@ -86,10 +86,10 @@ Every recorded number distinguishes its origin:
 ```
 CPU INFERENCE LATENCY COMPARISON (25 Candidates on 4 CPU Threads):
 
-bge-reranker-large (Deprecated):
+Large cross-encoder (deprecated):
   ████████████████████████████████████████ 50.63 seconds / query
 
-ettin-reranker-17m-v1 (Deprecated Experiment):
+Lightweight cross-encoder (deprecated experiment):
   █ 1.01 seconds / query
 
 LLMReranker (gpt-4o-mini) (CURRENT PRODUCTION):
@@ -97,7 +97,7 @@ LLMReranker (gpt-4o-mini) (CURRENT PRODUCTION):
 ```
 
 ### Why the LLM Reranker Won:
-1. **Eliminated the 50.6-Second CPU Bottleneck:** Running BGE-large on CPU made interactive queries unusable (~50.6s per query).
+1. **Eliminated the 50.6-Second CPU Bottleneck:** Running the large cross-encoder on CPU made interactive queries unusable (~50.6s per query).
 2. **Eliminated 512-Token Truncation:** 28% of financial table chunks exceeded the 512-token ceiling of cross-encoders, causing the bottom rows (and Total rows) to be cut off before scoring.
 3. **Native Table Reasoning:** LLMs understand two-dimensional Markdown grids natively, avoiding the prose bias of models pre-trained on MS-MARCO.
 

@@ -121,7 +121,7 @@ sequenceDiagram
 
 ### 4.2 Storage & Indexing Subsystem
 - **Vector & Lexical Store (Weaviate Cloud):** The authoritative store is Weaviate Cloud using the v4 Python SDK (`DiligenceChunk` collection, 1,984 objects, 21 properties).
-- **Dense Embeddings:** OpenAI `text-embedding-3-large` (1,536 dimensions) generated via Bring-Your-Own-Vectors (BYOV) in Python (`embeddings.py`), with local BGE (`bge-large-en-v1.5`, 1,024 dimensions) available as an optional offline provider.
+- **Dense Embeddings:** OpenAI `text-embedding-3-large` (1,536 dimensions) generated via Bring-Your-Own-Vectors (BYOV) in Python (`embeddings.py`).
 - **Sparse Lexical Search:** BM25 inverted indexing natively maintained in Weaviate Cloud across chunk text, section headings, and table headers.
 - **Hybrid Fusion:** Weaviate native Relative Score Fusion combining vector similarity and BM25 lexical matches ($\alpha = 0.50$, candidate pool Top-$N = 40$).
 - **Entity Scope Filtering:** Deterministic filter (`filter_subsidiary_candidates`) separating parent bank disclosures from subsidiary reports (e.g., HDB Financial Services) to prevent entity contamination.
@@ -135,7 +135,7 @@ sequenceDiagram
 
 ### 4.4 Reranking & Context Assembly Subsystem
 - **LLM Reranker (B5):** `LLMReranker` powered by **`gpt-4o-mini`** (configured via `Settings.llm_reranker_model`), operating at `temperature=0.0` in JSON object mode. Re-ranks all Top-40 candidates against 10 strict financial ranking principles and returns at most Top-$K=7$ chunk IDs (`{"ranked_chunk_ids": [...]}`).
-- **Historical Note:** Cross-encoders (`bge-reranker-large`, `ettin-reranker-17m-v1`) were completely removed due to 50s CPU latency and 512-token table truncation.
+- **Historical Note:** Cross-encoders were completely removed due to 50s CPU latency and 512-token table truncation.
 - **Evidence Context Builder (B6):** Packages the Top-7 reranked passages into sanitized XML (`<diligence_context>`), assigns abstract tokens (`E1`...`E7`), injects explicit statement-scope labels (`[STANDALONE ...]` / `[CONSOLIDATED ...]`), and applies U-shaped attention ordering ("lost-in-the-middle").
 
 ### 4.5 Grounded Generation & Guardrails Subsystem
