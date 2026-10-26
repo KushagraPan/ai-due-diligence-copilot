@@ -13,6 +13,11 @@ from typing import Any
 
 import pymupdf
 
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
 from due_diligence.ingestion.chunker import (
     ChunkingConfig,
     DocumentChunker,
@@ -30,9 +35,7 @@ CORPUS_PDF = Path("data/raw/hdfc-bank__annual-report__fy2025-26.pdf")
 
 
 def main() -> None:
-    if not CORPUS_PDF.exists():
-        logger.error("Corpus PDF not found at %s", CORPUS_PDF)
-        return
+    ensure_source_document(CORPUS_PDF)
 
     logger.info("Opening PDF: %s", CORPUS_PDF)
     doc = pymupdf.open(str(CORPUS_PDF))
@@ -232,4 +235,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)

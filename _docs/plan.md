@@ -179,6 +179,12 @@ The original engineering implementation plan is superseded by [`architecture.md`
 - [x] **Query Rewriter model cost optimization (2026-09-29, config-only)**
   - Query Rewriter default model changed from GPT-4o to GPT-4o-mini via new dedicated `Settings.query_rewriter_model` (default `"gpt-4o-mini"`, env `QUERY_REWRITER_MODEL`); previously it silently shared `generation_model` with B7. B5 (`llm_reranker_model=gpt-4o-mini`) and B7 (`generation_model=gpt-4o`) unchanged. Prompt, history handling, fast path, and parsing untouched.
   - Tests: `test_query_rewriter.py` default + call-model assertions updated to `gpt-4o-mini`; new `test_default_query_rewriter_model` in `test_config.py`. Full suite: 524 pass + 2 pre-existing golden-dataset failures (stale chunk IDs, version string). Ruff + mypy strict clean on touched files.
+- [x] **Source-document reproducibility hardening (2026-10-26)**
+  - Added `scripts/verify_source.py`: checks the 678-page count, pins the 678-page exchange filing SHA-256, warns on a placeholder checksum, and treats checksum mismatches as warnings by default (`--strict-checksum` makes them fatal).
+  - Added `src/due_diligence/core/source_check.py` and wired it into `PDFParser.parse` plus the PDF-dependent ingestion, indexing, chunking, layout, table, and benchmark scripts. Missing files now produce one README-linked error instead of a raw traceback.
+  - Documented the canonical 678-page exchange filing (1-page covering letter + 24-page AGM notice + 629-page Integrated Annual Report + 22-page Annexure 7 extract + 2-page debenture-holder web-link letter) and the 25-page offset versus the standalone website report in README > Source document.
+  - Verified both public exchange copies (NSE and BSE) byte-for-byte against the pinned SHA-256; README lists NSE as primary and BSE as alternate because BSE may block direct access.
+  - Tests: 567 pass; ruff + mypy strict clean.
 
 ---
 

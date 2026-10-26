@@ -42,6 +42,11 @@ from typing import Any
 
 import pymupdf
 
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
 from due_diligence.ingestion.elements import Table
 from due_diligence.ingestion.layout import LayoutConfig, reconcile_page_elements
 from due_diligence.ingestion.table_extractor import extract_tables_from_page
@@ -59,12 +64,9 @@ def run_layout_preflight(
     Runs full-document layout reconciliation audit across all pages.
     Generates per-page records and corpus-level summary metrics.
     """
-    path = Path(pdf_path)
+    path = ensure_source_document(pdf_path)
     out_file = Path(output_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Target PDF not found at {path}")
 
     doc = pymupdf.open(str(path))  # type: ignore[no-untyped-call]
     total_pages = len(doc)
@@ -225,4 +227,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)

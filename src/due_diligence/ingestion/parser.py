@@ -7,7 +7,7 @@ Page-level text extraction from validated PDF documents.
 3. Expected Inputs: ValidatedDocument instance pointing to an existing, validated PDF on disk.
 4. Outputs: ExtractedDocument containing an ordered sequence of 1-indexed ExtractedPage records.
 5. Dependencies: PyMuPDF (`pymupdf`), src.due_diligence.ingestion.document,
-   src.due_diligence.ingestion.font_mappings.
+   src.due_diligence.ingestion.font_mappings, src.due_diligence.core.source_check.
 6. Outside Scope: Optical Character Recognition (OCR), document chunking, table extraction, and embeddings.
 
 NOTE ON MAPPING PROVENANCE & LIVING SPECIFICATION:
@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pymupdf
 
+from due_diligence.core.source_check import ensure_source_document
 from due_diligence.ingestion.document import ExtractedDocument, ExtractedPage, ValidatedDocument
 from due_diligence.ingestion.font_mappings import (
     format_unmapped_placeholder,
@@ -178,10 +179,11 @@ class PDFParser:
             ExtractedDocument containing ordered, 1-indexed ExtractedPage objects.
 
         Raises:
+            SourceDocumentError: If the source PDF is missing.
             EncryptedDocumentError: If the PDF is encrypted or requires a password.
             CorruptedPDFParseError: If the PDF cannot be opened or parsed.
         """
-        path: Path = validated_doc.file_path
+        path = ensure_source_document(validated_doc.file_path)
 
         try:
             doc = pymupdf.open(path)  # type: ignore[no-untyped-call]

@@ -24,6 +24,12 @@ import pdfplumber
 import pymupdf
 from docling.document_converter import DocumentConverter
 
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
+
 PDF_PATH = Path("data/raw/hdfc-bank__annual-report__fy2025-26.pdf")
 SCRATCH_DIR = Path("scratch")
 SCRATCH_DIR.mkdir(exist_ok=True)
@@ -208,6 +214,7 @@ def run_docling(pdf_file: Path) -> dict:
 
 
 def main():
+    ensure_source_document(PDF_PATH)
     benchmark_results = {}
 
     for tc in TEST_CASES:
@@ -246,4 +253,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)

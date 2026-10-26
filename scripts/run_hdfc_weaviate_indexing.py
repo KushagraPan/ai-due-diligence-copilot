@@ -38,6 +38,11 @@ from pathlib import Path
 from typing import Any
 
 from due_diligence.core.config import get_settings
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
 from due_diligence.ingestion import DocumentLoader
 from due_diligence.retrieval.weaviate_store import (
     DEFAULT_COLLECTION_NAME,
@@ -114,9 +119,7 @@ def run_indexing(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # Step 2: Validate and load source document provenance
-    if not CORPUS_PDF.exists():
-        logger.error("Source document not found at %s", CORPUS_PDF)
-        sys.exit(1)
+    ensure_source_document(CORPUS_PDF)
 
     logger.info("Loading source document provenance from %s...", CORPUS_PDF)
     loader = DocumentLoader()
@@ -245,4 +248,7 @@ def run_indexing(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    run_indexing(parse_args())
+    try:
+        run_indexing(parse_args())
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)

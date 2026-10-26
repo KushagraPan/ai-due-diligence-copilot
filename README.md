@@ -138,7 +138,7 @@ uv run python scripts/run_b9_evaluation.py \
 - [uv](https://docs.astral.sh/uv/)
 - An OpenAI API key
 - A Weaviate Cloud cluster
-- The source PDF (not committed because of size and copyright)
+- The source PDF (not committed because of size and copyright; see [Source document](#source-document))
 
 ### Setup
 
@@ -153,11 +153,44 @@ cp .env.example .env
 # GEMINI_API_KEY is optional and only enables Tier 2 table extraction.
 ```
 
-Place the report at:
+### Source document
+
+The PDF is not committed because of size and copyright. This repository is pinned to the **678-page exchange filing dated 10 July 2026** (Ref. No. `SE/2026-27/65`), which contains:
+
+- 1-page covering letter to BSE/NSE
+- 24-page AGM notice
+- 629-page Integrated Annual Report
+- 22-page Annexure 7 extract (printed pages 2-23)
+- 2-page debenture-holder web-link letter dated 10 July 2026
+
+Download the exact file:
+
+- NSE (reliable): [HDFCBANK3_10072026234853_Final_IAR.pdf](https://nsearchives.nseindia.com/corporate/HDFCBANK3_10072026234853_Final_IAR.pdf)
+- BSE (alternate; may show "Access Denied" when opened directly): [BSE filing 39fa5483-1cd9-47bf-89e8-4f58a1ae1783](https://www.bseindia.com/xml-data/corpfiling/AttachHis/39fa5483-1cd9-47bf-89e8-4f58a1ae1783.pdf)
+
+Both links currently return the identical 12,667,766-byte file with the SHA-256 below.
+
+Official annual reports page: [hdfc.bank.in/about-us/investor-relations/annual-reports](https://www.hdfc.bank.in/about-us/investor-relations/annual-reports)
+
+At the time of writing (October 2026), that page publishes the **629-page standalone Integrated Annual Report** alongside the AGM notice as separate PDFs, not the combined 678-page filing. The standalone report's PDF page numbers are **25 lower** than the citations in this repository (`repository page = standalone report page + 25`). Downloading only the standalone report will fail `verify_source.py` and will not line up with the page citations.
+
+The test suite does not require the PDF. To reproduce ingestion and page citations, place the 678-page exchange filing at:
 
 ```text
 data/raw/hdfc-bank__annual-report__fy2025-26.pdf
 ```
+
+Expected page count: **678**
+
+Expected SHA-256: `92de3c75b6fc05afe8731e97705c9d3534cc192e677af02f4b325e3d82eafca6`
+
+Verify it before indexing:
+
+```bash
+uv run python scripts/verify_source.py
+```
+
+The verifier fails on a missing file or wrong page count. A checksum mismatch is a warning by default because HDFC may re-upload the same content with different bytes; use `--strict-checksum` to make it fatal.
 
 ### Build the index
 
@@ -222,9 +255,9 @@ src/due_diligence/
   agents/         grounded generator and deterministic citation verifier
   evaluation/     golden dataset schemas, evaluator, benchmark runner
   prompts/        task prompts and grounding rules
-  core/           settings and shared configuration
+  core/           settings, source-document guard, and shared configuration
 
-scripts/          ingestion, indexing, validation, and benchmark entry points
+scripts/          ingestion, indexing, validation, source verification, and benchmark entry points
 tests/
   unit/           fast component tests
   integration/    mocked end-to-end pipeline and CLI tests
@@ -240,7 +273,7 @@ This is a deliberate vertical slice, not a finished enterprise product.
 
 - **One document.** The index and chunk IDs target the HDFC Bank FY2025-26 report. Multi-document deal rooms and cross-company entity resolution are not implemented.
 - **CLI only.** There is no API server, web UI, authentication, or multi-tenant access control.
-- **PDF not included.** You must supply the source document; live ingestion and evaluation require paid OpenAI and Weaviate credentials.
+- **PDF not included.** You must supply the [678-page source filing](#source-document); live ingestion and evaluation require paid OpenAI and Weaviate credentials.
 - **Small benchmark.** Fifty questions on one document are useful for regression testing, not for claims of general accuracy.
 - **Not investment or legal advice.** Outputs are evidence summaries for analyst review, not recommendations.
 

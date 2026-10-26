@@ -24,6 +24,11 @@ import numpy as np
 import pymupdf
 
 from due_diligence.core.config import get_settings
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
 from due_diligence.ingestion.chunker import (
     ChunkingConfig,
     DocumentChunker,
@@ -60,8 +65,7 @@ def load_or_generate_canonical_chunks() -> list[Chunk]:
         logger.info("Loaded %d canonical chunks from cache.", len(chunks))
         return chunks
 
-    if not CORPUS_PDF.exists():
-        raise FileNotFoundError(f"Corpus PDF not found at {CORPUS_PDF}")
+    ensure_source_document(CORPUS_PDF)
 
     logger.info("Extracting DocumentElements across all pages of %s...", CORPUS_PDF.name)
     doc = pymupdf.open(str(CORPUS_PDF))  # type: ignore[no-untyped-call]
@@ -413,4 +417,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)

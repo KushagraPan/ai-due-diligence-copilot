@@ -39,6 +39,11 @@ from typing import Any
 
 import pymupdf
 
+from due_diligence.core.source_check import (
+    SourceDocumentError,
+    ensure_source_document,
+    exit_with_source_error,
+)
 from due_diligence.ingestion.table_extractor import (
     detect_all_table_regions,
     evaluate_quality_gate,
@@ -185,6 +190,7 @@ def run_full_preflight_audit(pdf_path: Path, output_path: Path) -> dict[str, Any
     Executes the 678-page scan, validates all arithmetic identities,
     and writes the machine-readable artifact.
     """
+    pdf_path = ensure_source_document(pdf_path)
     doc = pymupdf.open(pdf_path)
     total_pages = len(doc)
     start_t = time.perf_counter()
@@ -296,4 +302,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SourceDocumentError as exc:
+        exit_with_source_error(exc)
