@@ -55,7 +55,7 @@ Online execution is unified behind [`DiligencePipeline`](../../src/due_diligence
 │                                  │ (XML <diligence_context> + Map)     │               │
 │                                  ▼                                     ▼               │
 │                            generator.py (GroundedGenerator: gpt-4o) ───┘               │
-│                                  │ (GroundedAnswer with [EX] tokens)                   │
+│                                  │ (structured claims + evidence IDs)                   │
 │                                  ▼                                                     │
 │                            citation_verifier.py (Phase B8 Citation Verification)       │
 │                                  │                                                     │
@@ -82,6 +82,24 @@ Online execution is unified behind [`DiligencePipeline`](../../src/due_diligence
 - [`src/due_diligence/evaluation/`](../../src/due_diligence/evaluation/):
   - [`runner.py`](../../src/due_diligence/evaluation/runner.py) & [`evaluator.py`](../../src/due_diligence/evaluation/evaluator.py): Automated benchmark runner executing the complete pipeline against golden evaluation datasets (Q01–Q25, Q26–Q50).
 
+### The B7/B8 data contract
+
+The online pipeline does not pass free-form prose between B7 and B8. B7 returns:
+
+```python
+GroundedAnswer(
+    claims=[
+        Claim(text="HDFC Bank had 9,689 branches.", evidence_ids=["E1"]),
+        Claim(text="Nine were Digital Banking Units.", evidence_ids=["E2"]),
+    ],
+    answer_text="HDFC Bank had 9,689 branches [E1]. Nine were Digital Banking Units [E2].",
+    cited_evidence_ids=["E1", "E2"],
+    is_uncertain=False,
+)
+```
+
+B8 verifies each claim against its own `evidence_ids`. It records `ClaimVerification(status="verified" | "partially_supported" | "unverified")` and renders verified tokens as `[1]`, `[2]`. Adjacent citations like `[E1] [E2]` no longer create an empty text segment that can pass vacuously.
+
 ---
 
 ## 4. Subsystem Status & Maturity Matrix
@@ -101,8 +119,8 @@ Online execution is unified behind [`DiligencePipeline`](../../src/due_diligence
 | **Entity Scope Filtering** | `entity_scope.py` | **IMPLEMENTED** | **VALIDATED** (Parent vs. Subsidiary) |
 | **LLM Reranker (B5)** | `reranker.LLMReranker` | **IMPLEMENTED** | **VALIDATED** (`gpt-4o-mini`, $K=7$) |
 | **Evidence Context Builder (B6)** | `context_builder.ContextBuilder` | **IMPLEMENTED** | **VALIDATED** (Statement labels, XML) |
-| **Grounded LLM Generator (B7)** | `generator.GroundedGenerator` | **IMPLEMENTED** | **VALIDATED** (`gpt-4o`, 8 rules) |
-| **Citation Verifier (B8)** | `citation_verifier.CitationVerifier` | **IMPLEMENTED** | **VALIDATED** (Claim support & headings) |
+| **Grounded LLM Generator (B7)** | `generator.GroundedGenerator` | **IMPLEMENTED** | **VALIDATED** (`gpt-4o`, structured claims + evidence IDs) |
+| **Citation Verifier (B8)** | `citation_verifier.CitationVerifier` | **IMPLEMENTED** | **VALIDATED** (per-claim evidence verification & headings) |
 | **Golden Benchmark Suite (B9)** | `evaluation.BenchmarkRunner` | **IMPLEMENTED** | **VALIDATED** (50 golden questions) |
 
 ---
@@ -112,5 +130,5 @@ Online execution is unified behind [`DiligencePipeline`](../../src/due_diligence
 1. **Clean Architectural Decoupling:** Ingestion runs once offline; querying runs repeatedly online.
 2. **Current Budgets:** B4 hybrid retrieves 40 candidates; B5 scores 40 and emits Top-7 evidence items.
 3. **No Cross-Encoders in Production:** B5 is exclusively powered by `gpt-4o-mini`.
-4. **Active Verification:** B8 actively checks claim support, refusing citations to chunks that lack the claimed entities or numbers.
+4. **Active Verification:** B8 verifies each structured claim against its own evidence set, refusing citations to chunks that do not contribute the claimed entities or numbers.
 5. **Rebuilt Corpus:** 11,008 elements $\to$ 1,984 chunks $\to$ 1,984 vectors in Weaviate Cloud.

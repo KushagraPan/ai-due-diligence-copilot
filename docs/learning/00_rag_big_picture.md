@@ -56,7 +56,7 @@ The high-level pipeline spans decoupled subsystems connected across the Track A 
 │                                    │ (XML Context + E1..E7 Map)   │                    │
 │                                    ▼                              ▼                    │
 │                              Grounded LLM Generation (B7: gpt-4o) ─┘                    │
-│                                    │ (GroundedAnswer with [EX] tokens)                 │
+│                                    │ (GroundedAnswer: structured claims + evidence IDs)                 │
 │                                    ▼                                                   │
 │                              Citation Verifier (B8)                                    │
 │                                    │ (Claim support check & heading resolution)        │
@@ -86,7 +86,7 @@ The high-level pipeline spans decoupled subsystems connected across the Track A 
   - [`context_builder.py`](../../src/due_diligence/retrieval/context_builder.py): `EvidenceContextBuilder` ($K=7$, statement-scope labels, XML wire formatting).
 - [`src/due_diligence/agents/`](../../src/due_diligence/agents/):
   - [`generator.py`](../../src/due_diligence/agents/generator.py): `GroundedGenerator` (`gpt-4o`, 8 grounding rules, JSON output).
-  - [`citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py): `CitationVerifier` with `check_claim_support()`, `check_numeric_grounding()`, and `resolve_citation_heading()`.
+  - [`citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py): `CitationVerifier` with `check_claim_evidence_support()`, `check_numeric_grounding()`, and `resolve_citation_heading()`.
 - [`src/due_diligence/pipeline.py`](../../src/due_diligence/pipeline.py): End-to-end `DiligencePipeline` orchestrator.
 - [`src/due_diligence/evaluation/`](../../src/due_diligence/evaluation/): `BenchmarkRunner` and `DiligenceEvaluator` evaluating 50 golden benchmark questions.
 
@@ -109,7 +109,7 @@ The high-level pipeline spans decoupled subsystems connected across the Track A 
 | **LLM Reranker (B5)** | `reranker.LLMReranker` | **IMPLEMENTED** | **VALIDATED** (`gpt-4o-mini`, $K=7$) |
 | **Evidence Context Builder (B6)** | `context_builder.ContextBuilder` | **IMPLEMENTED** | **VALIDATED** (Statement labels, XML) |
 | **Grounded LLM Generator (B7)** | `generator.GroundedGenerator` | **IMPLEMENTED** | **VALIDATED** (`gpt-4o`, 8 rules) |
-| **Citation Verifier (B8)** | `citation_verifier.CitationVerifier` | **IMPLEMENTED** | **VALIDATED** (Claim support & headings) |
+| **Citation Verifier (B8)** | `citation_verifier.CitationVerifier` | **IMPLEMENTED** | **VALIDATED** (per-claim evidence checks & headings) |
 | **End-to-End Pipeline** | `pipeline.DiligencePipeline` | **IMPLEMENTED** | **VALIDATED** (6-stage orchestration) |
 | **Golden Benchmark Suite (B9)** | `evaluation.BenchmarkRunner` | **IMPLEMENTED** | **VALIDATED** (50 golden questions) |
 
@@ -119,5 +119,5 @@ The high-level pipeline spans decoupled subsystems connected across the Track A 
 
 1. **Current Pipeline is 6-Stage:** Query Rewriter $\to$ B4 Hybrid Retrieval $\to$ Entity Scope $\to$ B5 LLM Reranker $\to$ B6 Context Builder $\to$ B7 Grounded Generation $\to$ B8 Citation Verification.
 2. **Production Reranker is an LLM:** `gpt-4o-mini` with 10 principles; cross-encoders are deprecated.
-3. **Citation Verification Checks Content:** `check_claim_support()` ensures claimed numbers and entities appear in the cited chunk text.
+3. **Citation Verification Checks Claims:** `check_claim_evidence_support()` verifies each structured claim against its own evidence set, ensuring claimed numbers and entities appear in the cited chunks.
 4. **Rebuilt Production Baseline:** 11,008 elements, 1,984 chunks, 1,984 vectors.

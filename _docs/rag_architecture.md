@@ -50,7 +50,7 @@ flowchart TD
         CtxBuilder --> LLMPrompt["Grounded Prompt Construction<br/>(<diligence_context> + original_query)"]
         LLMPrompt --> LLM
         
-        LLM --> CitationEngine["Citation & Claim-Support Verifier (Deterministic Python)<br/>(check_claim_support, resolve_citation_heading)"]
+        LLM --> CitationEngine["Citation & Claim-Support Verifier (Deterministic Python)<br/>(claim/evidence verification, resolve_citation_heading)"]
         CitationEngine --> FinalAnswer["Audit-Ready Diligence Answer<br/>with Exact Page Footnotes [1] [2]"]
     end
 ```
@@ -127,10 +127,10 @@ sequenceDiagram
     CLI->>Ctx: Assemble context (Deduplicate, statement labels, U-shaped order)
     Ctx-->>CLI: Return Structured Evidence XML Block (<diligence_context> + map)
     CLI->>LLM: Dispatch Grounded Prompt (original_query + Evidence + 8 Grounding Rules)
-    LLM->>LLM: Synthesize factual answer with [EX] evidence citations
-    LLM-->>CLI: Return GroundedAnswer (answer_text, cited_evidence_ids, is_uncertain)
-    CLI->>Citation: Verify claim support & resolve citations
-    Citation->>Citation: check_claim_support() (physical presence) + resolve_citation_heading()
+    LLM->>LLM: Return structured claims with explicit evidence_ids
+    LLM-->>CLI: Return GroundedAnswer (claims, assembled answer_text, is_uncertain)
+    CLI->>Citation: Verify each claim against its evidence set
+    Citation->>Citation: check_claim_evidence_support() (union + per-chunk contribution) + resolve_citation_heading()
     Citation-->>Analyst: Return Verified Answer with Footnote Citations [1] [2]
 ```
 
@@ -499,7 +499,7 @@ Due diligence answers are useless without proof. A user must be able to click an
 [LLM Synthesized Statement + [E1] Tag]
                           │
                           ▼
-[Deterministic CitationVerifier (check_claim_support)]
+[Deterministic CitationVerifier (check_claim_evidence_support)]
                           │
                           ▼
 "Deposits totaled ₹23,45,600 Cr [1]"
@@ -507,11 +507,13 @@ Due diligence answers are useless without proof. A user must be able to click an
 ```
 
 ### 11.2 Citation Invariants & Active Verification Gate
-1. **Deterministic Token Indirection:** The LLM references internal tokens (`[E1]`, `[E2]`). The post-generation Citation Engine translates these into human-readable citations. The LLM is never allowed to type page numbers from memory.
-2. **Active Claim-Support Gate (`check_claim_support`):** Deterministic Python verifier inspects each cited claim segment:
-   - Verifies that every headline number ($\ge 4$ digits, %, currency) appears in the cited chunk text.
-   - Verifies that every multi-word named entity appears in the cited chunk text (using abbreviation-safe sentence splitting).
-   - If verification fails, the citation is demoted to `[Unverified: EX]` and logged in `unverified_citations` with explicit warnings.
+1. **Deterministic Token Indirection:** The LLM returns structured claims with evidence IDs. B7 places the internal tokens (`[E1]`, `[E2]`) deterministically, and B8 translates them into human-readable citations. The LLM is never allowed to type page numbers from memory.
+2. **Active Claim-Support Gate (`check_claim_evidence_support`):** Deterministic Python verifier inspects each structured claim against its complete evidence set:
+   - Every cited evidence ID must exist in the current `EvidenceContext`.
+   - The union of cited chunks must contain every headline number ($\ge 4$ digits, %, currency) and multi-word named entity in the claim.
+   - Every cited chunk must contribute at least one checkable anchor, or meaningful lexical support for qualitative claims.
+   - One claim may cite several chunks; one chunk may support several claims. Each claim is verified independently.
+   - If verification fails, the claim is `partially_supported` or `unverified`, and the failing token is demoted to `[Unverified: EX]`.
 3. **Nearest Heading Resolution (`resolve_citation_heading`):** Resolves the nearest true section heading, filtering out data rows, Total rows, and footnote markers.
 4. **Missing Page Graceful Fallback:** If a document lacks physical page numbers, the citation reports `[Page: Unknown, Section: ...]` rather than guessing.
 
@@ -640,7 +642,7 @@ The following 25 ground-truth test cases are tailored to the HDFC Bank FY2025-26
 | **Query Rewriter Model** | **Decided (Live)** | **OpenAI `gpt-4o-mini`** | Dedicated model (`Settings.query_rewriter_model`). Fast, cost-efficient reference resolution across 4-turn window with zero-LLM fast path. |
 | **Reranker Model (B5)** | **Decided (Live)** | **OpenAI `gpt-4o-mini` (LLM Reranker)** | Single-stage LLM reranker evaluating 10 financial principles in JSON mode. Replaced cross-encoders (BGE/Ettin) to eliminate 50s CPU latency and 512-token table truncation. |
 | **Grounded Generator (B7)** | **Decided (Live)** | **OpenAI `gpt-4o`** | High-fidelity synthesis in JSON mode enforcing 8 non-negotiable grounding rules and `[EX]` citations. |
-| **Citation Attribution (B8)** | **Decided (Live)** | **Deterministic Python (`CitationVerifier`)** | Verifies entity/numeric physical presence via `check_claim_support()`, resolves nearest headings via `resolve_citation_heading()`, translates tokens to footnotes `[1]`, `[2]`. |
+| **Citation Attribution (B8)** | **Decided (Live)** | **Deterministic Python (`CitationVerifier`)** | Verifies each claim against its evidence set via `check_claim_evidence_support()`, resolves nearest headings via `resolve_citation_heading()`, translates tokens to footnotes `[1]`, `[2]`. |
 | **Embeddings Model** | **Decided (Live)** | **OpenAI `text-embedding-3-large` (1,536 dims)** | High semantic accuracy on financial tables and terminology (1,984 objects indexed in Weaviate Cloud). Local BGE supported as optional offline fallback. |
 
 ---

@@ -73,7 +73,7 @@ Every recorded number distinguishes its origin:
 | **B6 Context Builder** | Max Context Budget | 24,000 characters | Upper ceiling for generation | In-memory XML format | Configured |
 | **B6 Context Builder** | Assembly Latency | < 5 ms | Deduplication + XML format | Python 3.12 | Measured |
 | **B7 Generation** | Model & Synthesis Latency | `gpt-4o` (~1.5–2.5s) | JSON mode grounded answer | Cloud API | Measured |
-| **B8 Citation Verifier**| Verification Latency | < 20 ms | Claim support & footnote resolution | Python 3.12 | Measured |
+| **B8 Citation Verifier**| Verification Latency | < 20 ms | Per-claim evidence support & footnote resolution | Python 3.12 | Measured |
 
 ---
 

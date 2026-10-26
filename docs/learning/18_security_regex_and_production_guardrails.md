@@ -33,7 +33,7 @@ flowchart TD
         L4["Layer 4: Dual-Query Separation<br/>• original_query preserved untouched for B7 Generation"]
         L5["Layer 5: Typed Weaviate SDK Parameterization<br/>• Filter.by_property objects prevent database injection"]
         L6["Layer 6: Passive Data Fencing in Context Builder<br/>• Escapes &lt;evidence&gt; tags; enforces untrusted data rules"]
-        L7["Layer 7: Deterministic Python Claim Verification<br/>• check_claim_support() verifies numbers & entities in chunk text<br/>• Revokes citation to [Unverified: EX] if unsupported"]
+        L7["Layer 7: Deterministic Python Claim Verification<br/>Claim/evidence support checks every cited chunk<br/>Revokes citation to [Unverified: EX] if unsupported"]
     end
 
     U --> L1
@@ -130,12 +130,12 @@ flowchart TD
 ---
 
 ### Layer 7: Deterministic Python Claim Verification (Phase B8)
-- **Threat:** The LLM hallucinates a number or is tricked into stating an unverified metric with a fake citation: `"Net profit was ₹ 999,999 Cr [E1]."`.
-- **Implementation in Code:** In [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py#L260-L320):
+- **Threat:** The LLM hallucinates a number or attaches a real claim to the wrong evidence ID: `Claim: "Net profit was 999,999 Cr." -> E1`.
+- **Implementation in Code:** In [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py):
   The system **does not ask another LLM** to check the output!
-  1. [`check_claim_support()`](../../src/due_diligence/agents/citation_verifier.py#L260) extracts all headline figures ($\ge 4$ digits, %, currencies) and named entity runs from the sentence citing `[E1]`.
-  2. Python inspects the raw text of `E1`.
-  3. If the figures do not physically exist in `E1.text`, Python **revokes the citation** and converts it into a visible warning: `[Unverified: E1]`.
+  1. [`check_claim_evidence_support()`](../../src/due_diligence/agents/citation_verifier.py) resolves every evidence ID in the claim and checks the claim text against the union of cited chunks.
+  2. Every cited chunk must contribute at least one checkable anchor (number/entity) or meaningful lexical support for qualitative claims.
+  3. If an evidence ID is missing, the claim fails, or a cited chunk contributes nothing, Python revokes the citation and renders `[Unverified: EX]`.
 
 ---
 

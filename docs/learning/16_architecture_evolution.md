@@ -159,9 +159,9 @@ WHY CROSS-ENCODERS WERE DEPRECATED:
   - B7 correctly named both firms ("Batliboi & Purohit" and "B S R & Co. LLP"), but cited only `[E6]`.
   - The old verifier passed it because `E6` existed in `evidence_map`. But Page 369 contained zero auditor names!
 - **The Solution:**
-  - Built `check_claim_support()` in [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py): Verifies that every headline number and multi-word named entity in the preceding claim segment appears in the cited chunk text.
+  - Built `check_claim_support()` for the legacy free-form path and later `check_claim_evidence_support()` for structured claims in [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py): verifies that every headline number and multi-word named entity in a claim appears in the claim's cited evidence.
   - Failed citations are converted to `[Unverified: EX]` and logged with explicit warnings.
-  - Built `resolve_citation_heading()`: Resolves the nearest heading above cited content, ignoring table rows, Total rows, and footnote markers.
+  - Built `resolve_citation_heading()`: resolves the nearest heading above cited content, ignoring table rows, Total rows, and footnote markers.
   - **Important Distinction:** B8 verifies lexical and normalized entity/number content-support; it does **NOT** perform full semantic claim-level entailment (NLI).
 
 ---
@@ -184,6 +184,20 @@ WHY CROSS-ENCODERS WERE DEPRECATED:
 
 ---
 
+### Phase 15: Structured Claim/Evidence Verification (B7 and B8)
+
+- **The Problem:** B8 originally inferred claim boundaries from citation position in free-form text. Adjacent citations such as `Revenue grew 12% [E1] [E2]` gave the second token an empty preceding segment. An empty segment had no anchors, so it could pass vacuously. A citation could also be verified globally for one claim and then reused to imply support for another.
+- **The Data-Contract Change:** B7 now returns `claims: [{text, evidence_ids}]`. `Claim` carries the claim text and its evidence set. B7 assembles `[EX]` tokens deterministically from `evidence_ids`; the model no longer places tokens in free-form prose.
+- **The Verification Change:** `check_claim_evidence_support()` verifies each claim against its complete evidence set:
+  - every cited evidence ID must resolve;
+  - the union of cited chunks must contain every headline number and named entity;
+  - every cited chunk must contribute at least one checkable anchor (or lexical support for qualitative claims).
+- **Per-claim statuses:** `ClaimVerification` records `verified`, `partially_supported`, or `unverified`. Evidence supports a claim/evidence pair, never a globally cached evidence item.
+- **Rendering:** Verified tokens still render as `[1]`, `[2]`; failing tokens become `[Unverified: EX]`.
+- **Regression coverage:** one-to-many, many-to-one, many-to-many, adjacent citations, unsupported second citations, unknown IDs, and the HDFC branch/DBU output.
+
+---
+
 ## 4. Architectural Summary: Yesterday vs. Today
 
 | Subsystem | Historical / Early Design | Current Production Architecture | Rationale for Evolution |
@@ -200,9 +214,9 @@ WHY CROSS-ENCODERS WERE DEPRECATED:
 | **Reranker (B5)** | **Cross-Encoders (BGE-large / Ettin)** | **LLM Reranker (`gpt-4o-mini`)** | Eliminated 50.6s CPU latency, 512-token table truncation, and prose bias |
 | **Reranker Budget** | Top-5 evidence passages | **Top-7 evidence passages** | Accommodates multi-chunk financial evidence |
 | **Statement Labels** | Raw chunk text | Injected `[STANDALONE ...]` labels in B6 | Enforces Standalone vs. Consolidated disambiguation in B7 |
-| **Grounded Generator (B7)** | `gpt-4o` (general prompt) | **`gpt-4o` with 8 Non-Negotiable Grounding Rules** | Enforces zero hallucination, strict unit fidelity, and explicit `[EX]` citations |
-| **Citation Verifier**| Token-existence check only | **`check_claim_support()` content gate** | Catches false attribution (Q10 auditor failure) |
-| **Verification Scope**| N/A | **Normalized Content Support (Not NLI)** | Verifies physical entity/number presence; does not perform semantic entailment |
+| **Grounded Generator (B7)** | `gpt-4o` (general prompt) | **`gpt-4o` with structured claims + evidence IDs** | Enforces zero hallucination, strict unit fidelity, and explicit claim/evidence mapping |
+| **Citation Verifier**| Token-existence check only | **Per-claim content-support gate** | Catches false attribution (Q10) and adjacent-citation vacuous passes |
+| **Verification Scope**| Positional text segments | **Explicit claim/evidence pairs** | Supports one-to-many, many-to-one, and many-to-many citations |
 
 ---
 
@@ -211,5 +225,5 @@ WHY CROSS-ENCODERS WERE DEPRECATED:
 1. **Source Code is Authoritative:** Any discrepancy between documentation and code must be resolved in favor of the source code.
 2. **Deterministic Provenance:** Every chunk, vector, and citation must trace back to 1-indexed physical PDF page coordinates.
 3. **The Single-Owner Invariant:** Every visual text block on a page must have exactly one structural owner (`unowned == 0`, `duplicate == 0`).
-4. **Token Indirection:** LLMs emit abstract tokens (`[EX]`); deterministic Python code resolves physical coordinates.
+4. **Token Indirection:** LLMs emit claim text with evidence IDs; deterministic Python places `[EX]` tokens and resolves physical coordinates.
 5. **Fail Loudly on Ungrounded Claims:** When evidence is missing, state `"Not disclosed in the ingested document."` and flag unverified citations.

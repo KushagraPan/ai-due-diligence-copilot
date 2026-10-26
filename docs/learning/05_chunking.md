@@ -353,7 +353,7 @@ page_numbers: list[int]        # e.g., [389]
 1. **Deduplication in B6 Context Builder:** When retrieval pulls adjacent chunks or overlapping slices, B6 checks `source_element_ids`. If two candidates share $> 85\%$ of the same source elements, the near-duplicate is pruned, saving token budget.
 2. **B8 Citation Verification:** When the LLM cites evidence token `[E1]`, B8 looks up `E1` in `evidence_map` and retrieves `page_numbers`, `heading_path`, and `source_element_ids`. It generates verified citations such as:
    `[1] HDFC Bank Annual Report FY2025-26, Page 389 (Schedule 12 - Contingent Liabilities)`
-3. **Auditing & Grounding Gates:** B8 runs `check_claim_support()`, verifying that every claimed entity and number physically exists in the text of the chunks cited.
+3. **Auditing & Grounding Gates:** B8 runs `check_claim_evidence_support()`, verifying that every claimed entity and number is supported by the claim's cited chunks and that every cited chunk contributes.
 
 ---
 

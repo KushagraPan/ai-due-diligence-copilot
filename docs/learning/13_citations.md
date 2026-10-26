@@ -5,217 +5,422 @@
 ## 1. What is this?
 
 ### 1.1 The Non-Technical Intuition (The Courtroom Deposition Analogy)
+
 Imagine a financial due diligence attorney preparing an investment committee memorandum. The attorney writes:
+
 > *"The bank's statutory auditors for FY2025-26 were Batliboi & Purohit and B S R & Co. LLP."*
 
-If the investment committee partner asks: *"Where did you get that from?"* and the attorney points to **Page 369**, the partner flips to Page 369 and discovers a page titled "Independent Auditor's Report" that discusses audit methodologies but **contains neither auditor's name**!
+If the investment committee partner asks *"Where did you get that from?"* and the attorney points to **Page 369**, the partner flips to Page 369 and finds an "Independent Auditor's Report" that discusses audit methodology but **contains neither auditor's name**.
 
-Even if the fact itself was true (the names appear on Pages 495–496 of the annual report), the citation on Page 369 is a **false attribution**. In a legal dispute or financial audit, an unverified citation destroys credibility.
+Even if the fact itself is true (the names appear on Pages 495-496), the citation on Page 369 is a **false attribution**. In a legal dispute or financial audit, one unverified citation destroys credibility.
 
-In our production pipeline, **Phase B8 (Citation Verification)** acts as the meticulous paralegal:
-1. It verifies that every citation token (`[E1]`, `[E2]`) emitted by the generation model genuinely exists in the retrieved evidence set.
-2. It executes a **content-support gate** (`check_claim_support()`), verifying that the specific numbers and named entities cited in the claim actually exist inside the cited chunk's text.
-3. It resolves the internal token (`[E1]`) into a clean human footnote (`[1]`) accompanied by an immutable audit ledger containing the exact document name, 1-indexed PDF page numbers, and resolved section headings.
+Phase B8 is the meticulous paralegal:
+
+1. It checks that every evidence ID emitted by B7 actually exists in the retrieved evidence set.
+2. It verifies that the cited evidence supports the **specific claim** it is attached to, not merely that the evidence exists.
+3. It resolves internal tokens (`[E1]`) into user-facing footnotes (`[1]`) with exact document, page, and section coordinates.
+4. It never invents coordinates. Unsupported citations become `[Unverified: EX]`.
+
+### 1.2 The Important Change: Claims Are Now Explicit
+
+Earlier versions of B8 tried to infer which text a citation supported by looking at the text immediately before each `[EX]` token. That positional approach broke on adjacent citations:
+
+```text
+Revenue grew 12% [E1] [E2]
+```
+
+For `E2`, the "text since the previous citation" was empty. An empty segment had no numbers or entities to check, so it passed without verifying anything.
+
+The system now uses an explicit **claim → evidence IDs** representation produced by B7:
+
+```json
+{
+  "claims": [
+    {
+      "text": "HDFC Bank had 9,689 branches as of March 31, 2026.",
+      "evidence_ids": ["E1"]
+    },
+    {
+      "text": "Nine of those branches were Digital Banking Units (DBUs).",
+      "evidence_ids": ["E2"]
+    }
+  ]
+}
+```
+
+B7 places the `[EX]` tokens deterministically. B8 verifies each claim against its own evidence set. The model no longer has to be trusted to put a citation in the right place in free-form prose.
 
 ---
 
 ## 2. Where does it fit in the RAG Pipeline?
 
-Phase B8 is the final quality and provenance gateway of the online pipeline:
-
-```
+```text
 [Phase B7: GroundedAnswer]
-"Batliboi & Purohit and B S R & Co. LLP were appointed auditors [E1]."
-cited_evidence_ids: ["E1"]
-                         │
-                         ▼
+claims = [
+  { text: "HDFC Bank had 9,689 branches as of March 31, 2026.",
+    evidence_ids: ["E1"] },
+  { text: "Nine of those branches were Digital Banking Units (DBUs).",
+    evidence_ids: ["E2"] }
+]
+                         |
+                         v
 [Phase B6: EvidenceContext.evidence_map]
-"E1" ──► EvidenceItem(
-           chunk_id="hdfc_c01452_b8a1",
-           document_name="hdfc-bank__annual-report__fy2025-26.pdf",
-           page_numbers=[495, 496],
-           section_heading="Consolidated Financial Statements",
-           text="... Batliboi & Purohit, Chartered Accountants ... B S R & Co. LLP ..."
-         )
-                         │
-                         ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│               PHASE B8: CITATION VERIFIER (citation_verifier.py)        │
-│ 1. Token Existence Check: Is 'E1' present in context.evidence_map?     │
-│ 2. Claim Support Gate: Does E1 text contain "Batliboi" & "B S R"?      │
-│ 3. Numeric Grounding Tripwire: Do headline numbers sit under labels?   │
-│ 4. Heading Resolution: Nearest heading above content (excluding tables)│
-│ 5. Footnote Renumbering: Replaces [E1] with [1], flags bad [Unverified]│
-└────────────────────────────┬───────────────────────────────────────────┘
-                             │
-                             ▼
-[VerifiedAnswer: Production Diligence Output]
-"Batliboi & Purohit and B S R & Co. LLP were appointed auditors [1].
-
-Sources & Diligence Provenance:
-[1] [hdfc-bank__annual-report__fy2025-26.pdf, Page 495, Page 496, Consolidated Financial Statements]"
+E1 -> EvidenceItem(chunk_id="...", page_numbers=[647], text="...9,689 branches...")
+E2 -> EvidenceItem(chunk_id="...", page_numbers=[61],  text="...nine DBUs...")
+                         |
+                         v
++--------------------------------------------------------------+
+| Phase B8: CitationVerifier                                   |
+| 1. Resolve every evidence ID against evidence_map            |
+| 2. Verify each claim against its complete evidence set       |
+| 3. Record verified / partially_supported / unverified        |
+| 4. Resolve headings and renumber [E1] -> [1]                 |
++--------------------------------------------------------------+
+                         |
+                         v
+[VerifiedAnswer]
+answer_text: "HDFC Bank had 9,689 branches [1]. It had nine DBUs [2]."
+citations: [Citation(...), Citation(...)]
+claim_verifications: [verified, verified]
 ```
 
----
-
-## 3. What did WE implement?
-
-Phase B8 is fully implemented in [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py):
-
-### Core Components:
-1. **`CitationVerifier` Class:** Master verification engine that parses `GroundedAnswer` instances, checks evidence presence, executes content-support checks, replaces tokens with footnotes, and builds structured citations.
-2. **`check_claim_support(answer_text, token, item)`:** Algorithmic content-support gate verifying that every headline number and multi-word named entity in the citing segment is present in the chunk text.
-3. **`check_numeric_grounding(answer_text, token, item, question)`:** Advisory tripwire validating that headline numbers sit under table rows or sentences sharing subject keywords with the user's question.
-4. **`resolve_citation_heading(item)`:** Dynamic heading resolver that inspects the chunk text for the nearest heading-like line above the cited content, excluding data rows, Total summary rows, and footnote markers.
-5. **Typed Pydantic Models:**
-   - [`Citation`](../../src/due_diligence/agents/citation_verifier.py#L400-L465): Immutable citation record holding `citation_number`, `evidence_id`, `chunk_id`, `document_name`, `page_numbers`, `section_heading`, `heading_path`, `source_element_ids`, `chunk_type`, and `snippet`.
-   - [`VerifiedAnswer`](../../src/due_diligence/agents/citation_verifier.py#L467-L498): Output container holding `answer_text` (with `[1]` markers), `raw_answer_text` (with `[EX]` tokens), `citations: list[Citation]`, `unverified_citations: list[str]`, `is_uncertain: bool`, and `grounding_warnings: list[str]`.
+B8 is the final online stage. It does not retrieve, rerank, or generate. It only verifies attribution and renders citations.
 
 ---
 
-## 4. What Citation Verification Actually Does
+## 3. What did we implement?
 
-Phase B8 executes four sequential verification layers:
+Phase B8 is implemented in [`src/due_diligence/agents/citation_verifier.py`](../../src/due_diligence/agents/citation_verifier.py), with the B7 claim schema in [`src/due_diligence/agents/generator.py`](../../src/due_diligence/agents/generator.py).
+
+### Core components
+
+1. **`Claim` (B7 model)**
+
+   ```python
+   class Claim(BaseModel):
+       text: str
+       evidence_ids: list[str]
+   ```
+
+   One claim can cite one or many evidence IDs. The same evidence ID can support several claims.
+
+2. **`GroundedAnswer.claims` (B7 output)**
+
+   B7 now returns structured claims plus the assembled `answer_text`, `cited_evidence_ids`, and `is_uncertain`. The old free-form `answer_text` schema is still accepted as a fallback.
+
+3. **`check_claim_evidence_support(claim_text, evidence_ids, items)` (B8)**
+
+   Verifies one claim against its complete evidence set. It returns:
+
+   - claim-level failures that invalidate the whole evidence set; and
+   - token-level failures that apply only to one evidence ID.
+
+4. **`ClaimVerification` (B8 result model)**
+
+   ```python
+   ClaimVerification(
+       text="HDFC Bank had 9,689 branches.",
+       evidence_ids=["E1", "E2"],
+       status="verified",
+       reasons=[],
+   )
+   ```
+
+   Status values:
+
+   - `verified`: every cited evidence ID resolved and contributed support.
+   - `partially_supported`: at least one cited evidence ID failed.
+   - `unverified`: no cited evidence ID passed, or the claim had no evidence.
+
+5. **`VerifiedAnswer.claim_verifications`**
+
+   The user-facing answer keeps the existing `[1]`, `[2]` footnotes. The per-claim audit trail is available separately for diagnostics and future UI layers.
+
+6. **`resolve_citation_heading(item)`**
+
+   Resolves the nearest real section heading, ignoring table rows, Total rows, and footnote markers.
+
+7. **`check_numeric_grounding(...)`**
+
+   Advisory tripwire that checks whether a headline number sits under a table row or sentence sharing subject keywords with the question. It emits warnings but does not by itself fail a citation.
+
+---
+
+## 4. Why positional citation parsing was replaced
+
+### 4.1 The adjacent-citation bug
+
+Consider:
+
+```text
+Revenue grew 12% [E1] [E2]
+```
+
+The old verifier split the sentence by citation position:
+
+- For `E1`: segment = `"Revenue grew 12% "`
+- For `E2`: segment = `" "` (empty)
+
+The empty segment had no headline numbers or entities. `check_claim_support()` returned no failures, so `E2` was marked verified. That is exactly the failure mode where a citation passes because a token exists, not because evidence supports a claim.
+
+### 4.2 Why prompt wording alone is not enough
+
+Even a perfect prompt can be violated by the model. The verifier must remain authoritative. The fix therefore changes the **data contract and verification path**, not just the instructions:
+
+```text
+LLM
+ |
+ v
+structured claims + evidence IDs
+ |
+ v
+Python validation of IDs
+ |
+ v
+claim/evidence support verification
+ |
+ v
+verified / partially_supported / unverified
+ |
+ v
+final renderer
+```
+
+### 4.3 The five supported citation patterns
+
+The verifier must handle all of these without assuming claims and citations are one-to-one:
+
+| Pattern | Example | Behaviour |
+| :--- | :--- | :--- |
+| One claim → one citation | `Claim A → E1` | Verify E1 against A. |
+| One claim → multiple citations | `Claim A → E1, E2` | Verify the claim against the complete set. |
+| Multiple claims → different citations | `Claim A → E1`, `Claim B → E2` | Verify each claim independently. |
+| Multiple claims → shared citation | `Claim A → E1`, `Claim B → E1` | Verify E1 separately against A and B. |
+| Multiple claims → multiple citations | `Claim A → E1, E2`, `Claim B → E2, E3` | Each claim passes only on its own evidence set. |
+
+E1 passing for Claim A must never automatically verify Claim B. Evidence supports a **claim/evidence pair**, not an evidence item globally.
+
+---
+
+## 5. Structured verification semantics
+
+### 5.1 Step 1: validate evidence IDs
+
+B7 rejects IDs that are not in the active `EvidenceContext` before returning a `GroundedAnswer`. If a caller hand-builds a `GroundedAnswer` with `E999`, B8 still refuses to verify it.
+
+Malformed claim structures are also rejected during parsing:
+
+- `claims` must be a JSON array;
+- each claim must be an object or string;
+- empty claim text is dropped;
+- evidence IDs are normalized (`e1`, `[E1]` → `E1`).
+
+### 5.2 Step 2: verify the claim against its evidence set
+
+For `Claim A → [E1, E2]`:
+
+1. Resolve E1 and E2 from `evidence_map`. Missing IDs produce token-level failures.
+2. Build the union of the resolved chunk texts.
+3. Extract the claim's **checkable anchors**:
+   - headline numbers (≥ 4 digits, percentages, currency/unit values);
+   - multi-word named entities.
+4. Every anchor must appear somewhere in the union. If an anchor is absent from all cited chunks, the claim fails.
+5. Every cited chunk must contribute at least one checkable anchor. This prevents an irrelevant second citation from being silently accepted.
+6. For a qualitative claim with no numbers or entities, require at least one content-word overlap with each cited chunk. If the claim has no checkable content at all, it is not verified.
+
+This is the important distinction:
+
+- **Union check:** the claim as a whole is supported.
+- **Contribution check:** each cited source actually contributes something.
+
+Neither check alone is sufficient. Union-only matching lets irrelevant citations pass. Contribution-only matching can reject a valid split across sources. Both are required.
+
+### 5.3 Step 3: assign a claim status
+
+| Outcome | Status |
+| :--- | :--- |
+| All evidence IDs resolve and contribute; all anchors found | `verified` |
+| At least one evidence ID resolves and contributes, but another fails | `partially_supported` |
+| No evidence ID passes, or no evidence IDs were provided | `unverified` |
+
+A `partially_supported` claim is **not** fully verified. The failing token is rendered as `[Unverified: EX]`.
+
+Shared evidence is handled conservatively. If `E1` supports Claim A but fails Claim B, the final renderer marks `[E1]` unverified everywhere. The per-claim `ClaimVerification` records preserve the distinction, so diagnostics can still show that E1 passed for A and failed for B.
+
+### 5.4 Step 4: render footnotes
+
+Verified tokens are assigned footnote numbers in order of first appearance and replaced with `[1]`, `[2]`, etc. Unverified tokens become `[Unverified: EX]`.
+
+Example:
+
+```text
+Claim A: "Revenue grew 12%."  -> E1 (supports), E2 (does not)
+```
+
+Internal result:
+
+```text
+ClaimVerification(status="partially_supported", evidence_ids=["E1", "E2"])
+```
+
+Rendered answer:
+
+```text
+Revenue grew 12% [1] [Unverified: E2].
+```
+
+The claim does not look fully grounded when only part of its evidence set is grounded.
+
+---
+
+## 6. The four verification layers
 
 ```mermaid
 flowchart TD
-    TokenIn["Extracted Token [EX]"] --> Step1{"1. Token Existence Check<br/>token in evidence_map?"}
-    
-    Step1 -->|No| Unverified["Flag as Unverified<br/>Text becomes [Unverified: EX]"]
-    
-    Step1 -->|Yes| Step2{"2. Content-Support Check<br/>check_claim_support()"}
-    
-    Step2 -->|Missing entity or number| Unverified
-    
-    Step2 -->|Passed| Step3["3. Heading Resolution<br/>resolve_citation_heading()"]
-    
-    Step3 --> Step4["4. Numeric Grounding Tripwire<br/>check_numeric_grounding() (Advisory)"]
-    
-    Step4 --> Valid["Emit Verified Citation<br/>Renumber [EX] to [1]<br/>Build Citation Model"]
+    Claims["Structured claims + evidence IDs"] --> Existence{"1. Do all evidence IDs exist in evidence_map?"}
+    Existence -->|No| TokenFail["Token-level failure: [Unverified: EX]"]
+    Existence -->|Yes| Support{"2. Does the claim's evidence set support every anchor?"}
+    Support -->|No| ClaimFail["Claim-level failure: all tokens in that claim fail"]
+    Support -->|Yes| Contribution{"3. Does every cited chunk contribute?"}
+    Contribution -->|No| Partial["Token-level failure for the non-contributing chunk"]
+    Contribution -->|Yes| Heading["4. Resolve heading and render [1], [2]"]
+    Heading --> Verified["verified citation"]
 ```
 
-### Layer 1: Token Existence & Structure Validation
-The verifier scans `answer_text` for bracketed tokens:
-```python
-re.finditer(r"\[([^\]]+)\]", raw_text)
-```
-- Supports single tokens (`[E1]`), grouped tokens (`[E1, E2]`), and malformed tokens (`[EX]`, `[Eabc]`).
-- Checks if the token exists as an active key in `context.evidence_map`. If the model emits `[E99]` when only `E1`..`E7` were provided, `E99` is rejected immediately.
+### Layer 1: Evidence ID existence
 
-### Layer 2: Content-Support Gate (`check_claim_support()`)
-A resolvable chunk ID is **necessary but not sufficient**. The chunk text must actually contain the specific claim attributed to it:
-1. **Per-Token Segment Isolation:** A citation token supports the claim *immediately preceding it* (the text since the previous citation token or sentence start), not unrelated numbers in earlier parts of the sentence.
-2. **Abbreviation-Safe Splitting:** Periods in titles and abbreviations (`"B. S. R."`, `"Co."`, `"Ltd."`) are protected so entity names are not severed across sentences.
-3. **Headline Number Verification:** Every number with $\ge 4$ digits, percentages (`%`), or currency labels must exist in normalized form (`_normalize_number()`) in the chunk text.
-   - *Exemptions:* Explanatory date expressions (e.g. *"FY2025-26"*), inline calculated results (e.g. `A - B = C`), and explicit derivations marked `(Calculated ...)`.
-4. **Named Entity Verification:** Capitalized multi-word entity runs (e.g. *"Batliboi & Purohit"*) are extracted. At least 50% of the entity's words must exist in the chunk text.
-   - *Exemptions:* Primary entity names (*"HDFC Bank"*) are governed by document metadata, not chunk text presence.
+A token is valid only if it exists in `context.evidence_map`. During B7 parsing, unknown IDs raise `GeneratorModelError`. During B8 verification, any unknown ID is marked unverified and never receives a page number.
 
-### Layer 3: Dynamic Heading Resolution (`resolve_citation_heading()`)
-When a chunk is assembled, its metadata contains `section_heading`. However, a multi-schedule page may contain an embedded heading inside the chunk text:
-```python
-def resolve_citation_heading(item: EvidenceItem) -> str | None:
-    # Scans lines in item.text for the nearest heading-like line above content
-    # Strictly ignores table rows (|), Total rows, and footnote markers
-    ...
-```
-This guarantees that citing a Schedule 12 disclosure lists `"Schedule 12 - Contingent Liabilities"` rather than an inherited parent heading or a `"Footnotes:"` header line.
+### Layer 2: Claim/evidence support
 
-### Layer 4: Numeric Grounding Tripwire (`check_numeric_grounding()`)
-An advisory sanity check:
-- Locates the exact table row or sentence containing the cited number in the chunk.
-- Checks whether the row label shares subject keywords with the user's question (e.g., verifying that a number cited for *"advances"* sits under a row containing *"Advances"* or *"Gross Advances"*).
-- **Advisory Only:** Emits warnings to `VerifiedAnswer.grounding_warnings` for analyst inspection; does not fail verification or discard citations.
+This is the core gate. The verifier does not infer claim boundaries from citation position. It uses the explicit claim text.
+
+- Headline numbers must be present in normalized form.
+- Multi-word entities must have sufficient word overlap with the cited text.
+- Date fragments, inline equation results, and explicit `(Calculated: ...)` derivations are handled specially.
+- Primary-entity names such as "HDFC Bank" are governed by statement-scope metadata rather than repeated chunk text.
+
+### Layer 3: Per-chunk contribution
+
+For `Claim A → [E1, E2]`, E1 and E2 must each contribute. A second citation that contains none of the claim's anchors or meaningful words is not accepted just because the claim is supported by E1.
+
+### Layer 4: Heading resolution and rendering
+
+`resolve_citation_heading()` inspects the chunk for the nearest heading-like line. It excludes table data rows, Total rows, and footnote lines. The final citation contains the document name, 1-indexed pages, section heading, chunk ID, and an excerpt.
 
 ---
 
-## 5. What Citation Verification DOES NOT Do
-
-It is vital to understand the architectural boundary of Phase B8:
+## 7. What B8 does NOT do
 
 > [!WARNING]
-> **CRITICAL BOUNDARY:**  
-> Phase B8 **DOES NOT** perform full semantic claim-level entailment (Natural Language Inference / NLI).
+> **CRITICAL BOUNDARY:** B8 does not perform full semantic entailment (NLI).
 
-1. **No Logical Entailment Modeling:** B8 does not run a DeBERTa-v3 NLI model or an LLM judge to determine whether a complex argumentative conclusion logically follows from the premises.
-2. **No Factual Truth Judgment:** B8 does not decide whether a financial claim is economically true or false. It only verifies **attribution fidelity**: did the cited chunk contain the numbers and entities claimed in the text?
-3. **Lexical & Normalized Match:** B8 checks normalized tokens, exact numbers, and entity word overlaps. It does not rewrite or repair ungrounded claims.
+1. **No logical entailment model.** It does not run a DeBERTa NLI model or an LLM judge to prove that a complex conclusion follows from the premises.
+2. **No factual truth judgment.** It does not decide whether a financial claim is economically true. It checks attribution fidelity: are the claimed numbers and entities in the cited evidence?
+3. **No claim rewriting.** It does not repair an unsupported claim. It flags it and preserves the failure visibly.
+4. **Not a substitute for analyst review.** `[Unverified: EX]` is a safety signal, not a legal conclusion.
+
+The deterministic gate is intentionally conservative. A claim can still be analytically weak or misleading even when its numbers appear in the cited chunk.
 
 ---
 
-## 6. Pedagogical Case Study: The Q10 Auditor Provenance Failure
+## 8. Pedagogical case study: the Q10 auditor provenance failure
 
-During golden benchmark evaluation, question **Q10** (*"Who are the statutory auditors of HDFC Bank for FY2025-26?"*) revealed why token-existence checks alone are insufficient for due diligence.
+Question Q10: *"Who are the statutory auditors of HDFC Bank for FY2025-26?"*
 
-```
-THE Q10 FAILURE TRACE (What Went Wrong):
+### The failure trace
 
-1. Phase B6 Context Builder assembled evidence items:
-   - E1 (Pages 495–496: Consolidated Statements):
-     Text: "... M/s M.M. Nissim & Co. LLP and M/s B S R & Co. LLP were appointed ...
-            Batliboi & Purohit and B S R & Co. LLP ..."  [CONTAINS AUDITOR NAMES]
-   - E6 (Page 369: Independent Auditor's Report):
-     Text: "Report on the Audit of the Standalone Financial Statements ...
-            Basis for Opinion ... Key Audit Matters ..."  [NAMELESS OPINION BODY]
+1. B6 assembled:
+   - E1 (Pages 495-496): contains "Batliboi & Purohit" and "B S R & Co. LLP".
+   - E6 (Page 369): an auditor's report body with no auditor names.
+2. B7 wrote:
+   ```text
+   The statutory auditors ... were Batliboi & Purohit and B S R & Co. LLP [E6].
+   ```
+3. The old token-existence check passed because E6 existed.
+4. A human clicking Page 369 would find no auditor names.
 
-2. Phase B7 Grounded Generator wrote the answer:
-   "The statutory auditors of HDFC Bank for FY2025-26 were Batliboi & Purohit
-    and B S R & Co. LLP [E6]."
+### The correction
 
-3. The Subtle Catastrophe:
-   - The LLM had both auditor names in its working context (via E1).
-   - But the LLM attributed the claim exclusively to [E6] (Page 369).
-   - Page 369 was a nameless page! The actual names only appeared on Page 495.
+The content-support gate extracts the named entity runs from the claim:
 
-4. The Old Verifier Passed It!
-   Under the old token-existence check:
-   - Is 'E6' in evidence_map? YES.
-   - Result: Verified citation emitted pointing to Page 369!
-   - A human auditor clicking the citation found ZERO auditor names on Page 369.
+```text
+["Batliboi & Purohit", "B S R & Co. LLP"]
 ```
 
-### The Solution: The Content-Support Gate
-When `check_claim_support()` was introduced:
-1. It extracted the claim segment: `"The statutory auditors of HDFC Bank for FY2025-26 were Batliboi & Purohit and B S R & Co. LLP"`
-2. It extracted the entity runs: `["Batliboi & Purohit", "B S R & Co. LLP"]`
-3. It checked Chunk E6 text: neither `"Batliboi"` nor `"B S R"` appeared in E6!
-4. **Result:** `check_claim_support()` failed E6.
-5. In the final answer, the citation token was stripped and replaced with `[Unverified: E6]`, and an explicit warning was logged:
-   `"[E6] cited claim names entity 'Batliboi & Purohit' unsupported by evidence text (chunk hdfc_c01124)"`
+Neither appears in E6, so E6 fails. The token becomes `[Unverified: E6]` and a warning records the unsupported entity.
 
-When the pipeline was re-evaluated, B7 selected E1 (the genuine auditor disclosure), and B8 cleanly verified the citation to Pages 495–496 with zero warnings.
+In the re-run, B7 cited E1 (the genuine disclosure), and B8 verified the citation against Pages 495-496 with no warnings.
+
+The broader lesson: a model can have the right fact in its context and still attach it to the wrong page. Claim-level attribution checking is mandatory.
 
 ---
 
-## 7. Concepts I Learned
+## 9. Concepts learned
 
-### Python Concepts
-- **Callable Regex Renumbering:** Using `re.sub(pattern, replacer_func, text)` with an in-memory dictionary to sequentially renumber arbitrary tokens (`[E3]` $\to$ `[1]`, `[E7]` $\to$ `[2]`).
-- **Abbreviation Protection Masking:** Replacing abbreviation periods with temporary Unicode sentinel bytes (`\u0001`) during sentence segmentation and restoring them afterward.
-- **Set Word-Fraction Heuristics:** Implementing robust multi-word entity matching (`hits * 2 >= len(words)`) to tolerate variations in punctuation while strictly rejecting unsupported entities.
+### Python and modelling
 
-### RAG Concepts
-- **Attribution vs. Grounding:** A statement can be grounded in the context window overall, but attributed to the wrong chunk. RAG systems must verify attribution per citation.
-- **Deterministic Citation Indirection:** Forcing LLMs to emit abstract tokens (`[EX]`) and resolving coordinates in Python eliminates hallucinated page numbers.
-- **Fail-Safe Citation Degeneracy:** When an LLM cites an ungrounded chunk, the citation must be visibly marked as `[Unverified: EX]`, alerting the human reviewer without crashing the system.
+- **Explicit data contracts beat text heuristics.** A `Claim(text, evidence_ids)` model removes the need to guess which text a token belongs to.
+- **Per-claim result models.** `ClaimVerification` makes success and failure auditable instead of hiding it in a list of warning strings.
+- **Normalization before comparison.** Evidence IDs, numbers, and entity names must be normalized before matching.
+- **Union plus contribution checks.** A claim can be supported by several chunks, but every cited chunk must contribute something.
+- **Immutable Pydantic models.** `Citation`, `Claim`, and `VerifiedAnswer` are frozen so verification results cannot be silently mutated downstream.
+
+### RAG and due diligence
+
+- **Attribution is not the same as grounding.** A fact can be present somewhere in the context window but attached to the wrong citation.
+- **Citations are pairs, not global flags.** E1 being valid for Claim A says nothing about Claim B.
+- **Fail visibly, not silently.** Unsupported claims must surface as `[Unverified: EX]`, not as plausible-looking footnotes.
+- **Prompt rules are necessary but insufficient.** The Python verifier must enforce the contract independently of the LLM.
+- **One-to-many and many-to-many are normal.** A claim can need multiple sources; one source can support multiple claims.
 
 ---
 
-## 8. Summary Comparison: Verification Checks in Phase B8
+## 10. Verification checks at a glance
 
-| Check Name | Target Inspected | Failure Action | Purpose |
+| Check | Target | Failure action | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Token Existence** | `evidence_map` | Replaces with `[Unverified: EX]` | Stops hallucinated tokens (e.g. `[E99]`) |
-| **Claim Support** | Cited Chunk Text | Replaces with `[Unverified: EX]` | Stops false attribution (e.g. Q10 auditor failure) |
-| **Heading Resolution** | Chunk Text Lines | Falls back to section heading | Eliminates table/footnote noise in citations |
-| **Numeric Grounding** | Row/Sentence Labels | Logs advisory warning | Flags numbers misaligned with question subjects |
+| Evidence ID existence | `evidence_map` | `[Unverified: EX]` | Stops hallucinated tokens such as `[E999]` |
+| Claim/evidence union | Claim anchors vs. cited chunks | Claim-level failure | Stops claims missing a required number or entity |
+| Per-chunk contribution | Each cited chunk | Token-level failure | Stops irrelevant extra citations |
+| Qualitative lexical support | Claim words vs. chunk words | Token-level failure | Stops vacuous passes for claims with no numbers/entities |
+| Heading resolution | Chunk text lines | Fallback heading | Prevents table/footnote noise in citations |
+| Numeric grounding | Row/sentence labels | Advisory warning | Flags numbers that may belong to a different subject |
 
 ---
 
-## 9. Things to Remember
+## 11. Regression coverage
 
-1. **B8 is a Verification Gate:** Resolves tokens and verifies claim support; does not generate new answers.
-2. **Not Full NLI:** Verifies lexical and normalized entity/number support; does not evaluate semantic entailment.
-3. **The Q10 Lesson:** A model can possess the right fact in context but cite the wrong page. Content-support checking is mandatory.
-4. **1-Indexed Page Preservation:** Every verified citation renders exact, 1-indexed PDF page coordinates.
-5. **Clear Warning Annotations:** Advisory warnings are preserved in `VerifiedAnswer.grounding_warnings` for human diligence teams.
+The structured-citation work is covered by tests for:
+
+- one claim → one citation;
+- one claim → multiple citations;
+- multiple claims → different citations;
+- multiple claims → shared citation;
+- one claim → adjacent citations (no empty-segment pass);
+- unsupported second citation (`partially_supported`, not fully verified);
+- unknown evidence ID;
+- two atomic claims in one sentence;
+- the HDFC branch/DBU output pattern;
+- parser rejection of unknown IDs and normalization of embedded tokens;
+- legacy free-form answers with a single citation.
+
+Relevant files:
+
+- `tests/unit/test_citation_verifier.py`
+- `tests/unit/test_generator.py`
+- `tests/integration/test_cli_integration.py`
+
+---
+
+## 12. Things to remember
+
+1. **B8 is a verification gate, not a generator.** It verifies and renders; it never writes new claims.
+2. **Claims are explicit.** The model returns `text` and `evidence_ids`; Python verifies the pair.
+3. **One claim may have many citations.** Atomicity is about the factual assertion, not the number of sources.
+4. **One citation may support many claims.** Verify it independently for each claim.
+5. **Union and contribution are both required.** The claim must be supported as a whole, and every cited chunk must contribute.
+6. **Not full NLI.** The gate checks normalized numbers, entities, and lexical support, not deep semantic entailment.
+7. **Fail visibly.** Unsupported citations become `[Unverified: EX]` with a diagnostic.
+8. **Preserve provenance.** Every verified citation resolves to exact 1-indexed pages and a real section heading.
+9. **Shared evidence fails closed.** If a shared evidence ID fails any claim that cites it, the rendered token is unverified globally; per-claim statuses retain the finer detail.
