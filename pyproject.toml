@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "due-diligence-copilot"
+version = "0.1.0"
+description = "Source-grounded RAG copilot for financial due diligence with deterministic citation verification"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "Kushagra" }
+]
+keywords = ["rag", "due-diligence", "weaviate", "hybrid-search", "citations", "finance"]
+dependencies = [
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "pymupdf>=1.24.0",
+    "weaviate-client>=4.6.0",
+    "openai>=1.30.0",
+    "tiktoken>=0.7.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.scripts]
+diligence = "due_diligence.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/due_diligence"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.4",
+    "mypy>=1.10.0",
+]
+research = [
+    # Only needed to reproduce scripts/benchmark_table_engines.py (engine comparison).
+    "docling>=2.130.0",
+    "pdfplumber>=0.11.0",
+    "pandas>=2.2.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["pymupdf", "pymupdf.*", "yaml"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

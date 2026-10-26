@@ -1,0 +1,132 @@
+# Versioned Symbol Font & Smart Punctuation Mappings
+#
+# NOTE ON MAPPING PROVENANCE & SCHEMA DESIGN:
+# 1. `symbol_fonts` entries carry `confirmed_from` and `confirmed_on` because symbol font
+#    codepoint-to-glyph assignments are empirical findings from specific filings that vary
+#    by issuer and design software. This is a living mapping that grows across batches.
+# 2. `text_punctuation` entries intentionally omit `confirmed_from`/`confirmed_on` because
+#    they represent standard invariant specifications (Windows-1252 bytes 0x80-0x9F and
+#    Unicode General Punctuation U+2000-U+206F), rather than document-specific discoveries.
+# 3. Distinct en-dash ('–') and em-dash ('—') are preserved to prevent semantic conflation
+#    between negative numbers, compound words, and accounting 'nil/not disclosed' indicators.
+#    A downstream heuristic flags standalone dashes as '[NIL/NOT DISCLOSED]' pending Phase 1 Task 3
+#    structured table extraction.
+
+symbol_fonts:
+  wingdings:
+    "0x0079":
+      glyph: "• "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Standard bullet point icon (ASCII 'y')"
+    "0xF0D8":
+      glyph: "• "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Right-pointing pointer/arrow bullet in risk disclosure lists"
+    "0x007B":
+      glyph: "• "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Bullet point icon (ASCII '{') in Audit Committee report"
+    "0x00FC":
+      glyph: "✓"
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Checkmark in compliance and audit tables"
+    "0xF0FC":
+      glyph: "✓"
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Checkmark (PUA encoding) in governance tables"
+    "0x0007":
+      glyph: " "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Table cell control delimiter converted to space"
+    "0xF0E4":
+      glyph: ""
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Single-occurrence decorative graphic gauge icon dropped"
+    "0x0020":
+      glyph: " "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Standard space within symbol font spans"
+    "0x0009":
+      glyph: "\t"
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Standard tab within symbol font spans"
+
+  wingdings3:
+    "0xF0DB":
+      glyph: "↑ "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Upward trend arrow preceding growth percentages (verified visually at 3x zoom on p.30)"
+    "0xF0D3":
+      glyph: "↑ "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Upward trend arrow preceding capital ratios (verified visually at 3x zoom on p.272)"
+
+  symbol:
+    "0xF0BB":
+      glyph: "• "
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "List bullet preceding emissions metrics on p.636"
+    "0x2022":
+      glyph: "•"
+      confirmed_from: "hdfc-bank_fy2025-26.pdf"
+      confirmed_on: "2026-09-25"
+      note: "Standard Unicode bullet point in Symbol font"
+
+text_punctuation:
+  "0x0085":
+    glyph: "..."
+    note: "CP1252 horizontal ellipsis"
+  "0x0091":
+    glyph: "'"
+    note: "CP1252 left single quotation mark"
+  "0x0092":
+    glyph: "'"
+    note: "CP1252 right single quotation mark / apostrophe"
+  "0x0093":
+    glyph: '"'
+    note: "CP1252 left double quotation mark"
+  "0x0094":
+    glyph: '"'
+    note: "CP1252 right double quotation mark"
+  "0x0095":
+    glyph: "•"
+    note: "CP1252 bullet"
+  "0x0096":
+    glyph: "–"
+    note: "CP1252 en dash (preserved for ranges and accounting nil markers)"
+  "0x0097":
+    glyph: "—"
+    note: "CP1252 em dash (preserved for prose parentheticals and accounting nil markers)"
+  "0x2018":
+    glyph: "'"
+    note: "Unicode left single quotation mark"
+  "0x2019":
+    glyph: "'"
+    note: "Unicode right single quotation mark / apostrophe"
+  "0x201C":
+    glyph: '"'
+    note: "Unicode left double quotation mark"
+  "0x201D":
+    glyph: '"'
+    note: "Unicode right double quotation mark"
+  "0x2013":
+    glyph: "–"
+    note: "Unicode en dash (preserved for ranges and accounting nil markers)"
+  "0x2014":
+    glyph: "—"
+    note: "Unicode em dash (preserved for prose parentheticals and accounting nil markers)"
+  "0x2026":
+    glyph: "..."
+    note: "Unicode horizontal ellipsis"

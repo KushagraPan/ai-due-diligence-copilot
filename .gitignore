@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Data & Storage
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/vector_store/*
+!data/vector_store/.gitkeep
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Generated evaluation reports (re-run the harness to produce them)
+tests/eval/results/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Local AI assistant tooling (not part of the application)
+.opencode/
+.agents/
+skills-lock.json
+
+# Local scratch work, archived experiments, and generated media drafts
+_local/
+scratch/
+brag-output-*/
+needs_review_*.json

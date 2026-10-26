@@ -1,0 +1,634 @@
+{
+ "version": "1.0.1",
+ "company": "HDFC Bank Limited",
+ "document_name": "hdfc-bank__annual-report__fy2025-26.pdf",
+ "description": "Authoritative 25-question golden benchmark evaluation set covering 16 diligence failure modes for HDFC Bank FY2025-26 Annual Report.",
+ "questions": [
+  {
+   "id": "Q01",
+   "question": "What was the bank's total deposit base as of March 31, 2026?",
+   "category": "financial_metric",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "31,052,504,740 thousand",
+    "3,105,250 crore",
+    "31,05,250 crore"
+   ],
+   "expected_pages": [
+    378,
+    384
+   ],
+   "expected_section": "Standalone Balance Sheet (Schedule 3)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Balance sheet on Page 378 states 31,052,504,740 thousand INR. Schedule 3 on Page 384 details Deposits totaling 31,052,504,740 thousand INR. Executive summaries on Page 34 and 41 report ₹31,05,250 crore / ₹31,05,251 crore.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01105_c1d818975824",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01117_f6904843018e"
+   ]
+  },
+  {
+   "id": "Q02",
+   "question": "What was the Common Equity Tier 1 (CET1) ratio of HDFC Bank as of March 31, 2026 under Basel III?",
+   "category": "ratio_capital",
+   "failure_mode": "ambiguous_terminology",
+   "expected_facts": [
+    "17.28%"
+   ],
+   "expected_pages": [
+    403
+   ],
+   "expected_section": "Capital Adequacy Ratios under Basel III",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 403 reports actual CET1 ratio as 17.28% (previous year 17.23%). Page 402 reports minimum regulatory requirement of 8.4%. Must distinguish actual CET1 ratio (17.28%) from regulatory minimum (8.4%) or Total CAR (19.7% / 19.71%).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01168_063a38157e58",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01166_7786ca8ae361"
+   ]
+  },
+  {
+   "id": "Q03",
+   "question": "How much was spent on payments to and provisions for employees under operating expenses in FY2025-26?",
+   "category": "table_lookup",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "260,501,479 thousand",
+    "26,050.15 crore"
+   ],
+   "expected_pages": [
+    391
+   ],
+   "expected_section": "Schedule 16 - Operating Expenses",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Standalone Schedule 16 on Page 391 reports 260,501,479 thousand INR (~₹26,050.15 crore). Consolidated Schedule 16 on Page 510 reports ₹37,604.81 crore.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01138_06934907c5e1"
+   ]
+  },
+  {
+   "id": "Q04",
+   "question": "What was the percentage growth in net profit between FY2024-25 and FY2025-26?",
+   "category": "multi_year_comparison",
+   "failure_mode": "year_over_year_comparison",
+   "expected_facts": [
+    "10.9%",
+    "74,671",
+    "67,347"
+   ],
+   "expected_pages": [
+    272,
+    273,
+    275,
+    280,
+    379
+   ],
+   "expected_section": "Return on Average Assets / Standalone Profit and Loss Account",
+   "calculation_required": true,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Net Profit 10.9% growth verified on Pages 272, 273, 275, 280 (10.9% / 74,671.3 / 67,347.4 figures present on each). Page 273: Net Profit Rs.74,671.3 crore (YoY: Up 10.9 per cent). Page 280 reiterates 10.9% to 74,671.3 crore from 67,347.4 crore. Page 275: Profit After Tax Rs.74,671.3 Cr vs Rs.67,347.4 Cr. Audited P&L Page 379: 746,712,933 thousand vs 673,473,581 thousand (+10.875% ~ 10.9%).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00797_f335efad5add",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00821_5479e94fc8ec",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00808_c63cefd782ec",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01107_175c24c89f0f"
+   ]
+  },
+  {
+   "id": "Q05",
+   "question": "What were the basic and diluted Earnings Per Share (EPS) for FY2025-26?",
+   "category": "financial_metric",
+   "failure_mode": "financial_metric_lookup",
+   "expected_facts": [
+    "Basic: 48.62",
+    "Diluted: 48.40",
+    "48.62",
+    "48.40"
+   ],
+   "expected_pages": [
+    379
+   ],
+   "expected_section": "Standalone Profit and Loss Account (Section V)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 379 Section V explicitly reports Basic EPS 48.62 and Diluted EPS 48.40 (face value ₹1/-).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01107_175c24c89f0f"
+   ]
+  },
+  {
+   "id": "Q06",
+   "question": "What was the total amount of contingent liabilities as of March 31, 2026?",
+   "category": "table_lookup",
+   "failure_mode": "risk_question",
+   "expected_facts": [
+    "34,179,458,972 thousand",
+    "3,417,945.90 crore",
+    "34,17,946 crore"
+   ],
+   "expected_pages": [
+    378,
+    389
+   ],
+   "expected_section": "Standalone Balance Sheet (Schedule 12)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 378 line 12 reports 34,179,458,972 thousand INR. Schedule 12 breakdown on Page 389 details forward exchange and derivative contracts.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01105_c1d818975824",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01133_e98fa7de4d55"
+   ]
+  },
+  {
+   "id": "Q07",
+   "question": "What were the Gross NPA and Net NPA ratios of the bank as of March 31, 2026?",
+   "category": "ratio_capital",
+   "failure_mode": "ratio_capital",
+   "expected_facts": [
+    "Gross NPA: 1.15%",
+    "Net NPA: 0.38%"
+   ],
+   "expected_pages": [
+    425,
+    273,
+    34
+   ],
+   "expected_section": "Notes to Accounts - Asset Quality",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 425 table gives Gross NPA ratio as 1.15% (prior year 1.33%) and Net NPA ratio as 0.38% (prior year 0.43%). Page 273 and 34 also report Gross NPA 1.15%.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01265_c87edd2f01d6",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00087_0cc8e801a833",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00797_f335efad5add"
+   ]
+  },
+  {
+   "id": "Q08",
+   "question": "What key customer initiatives and digital channels drove the retail banking franchise performance in FY2025-26?",
+   "category": "narrative",
+   "failure_mode": "management_business_narrative",
+   "expected_facts": [
+    "digital",
+    "branch network",
+    "Digital Banking Units",
+    "DBUs"
+   ],
+   "expected_pages": [
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    280,
+    281
+   ],
+   "expected_section": "Retail Banking / Segment Reporting",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Retail banking franchise, digital channels and customer initiatives verified on Pages 114-121 (retail/digital narrative) and Pages 280-281 (Retail Banking, PayZapp, UPI, branch network). Previous expected pages [57, 58, 563] were AI-authored errors (executive profiles / gratuity notes), corrected against the raw PDF.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00159_148bb162d961",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01694_15de7f57e1bd"
+   ]
+  },
+  {
+   "id": "Q09",
+   "question": "How many meetings of the Board of Directors were held during FY2025-26?",
+   "category": "governance",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "21",
+    "21 Board meetings"
+   ],
+   "expected_pages": [
+    342
+   ],
+   "expected_section": "Board Meetings and Annual General Meeting",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Corporate Governance report on Page 342 states: 'During the financial year under review, 21 Board meetings were held.'",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01011_77e4fed7d8d6"
+   ]
+  },
+  {
+   "id": "Q10",
+   "question": "Who were the joint statutory auditors who audited and signed the Standalone Financial Statements for FY2025-26?",
+   "category": "legal_compliance",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "Batliboi & Purohit",
+    "B S R & Co. LLP",
+    "101048W",
+    "101248W"
+   ],
+   "expected_pages": [
+    378,
+    379,
+    12
+   ],
+   "expected_section": "Independent Auditor's Report Signature Block",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Signed on April 18, 2026 by Batliboi & Purohit (ICAI Reg No. 101048W) and B S R & Co. LLP (ICAI Reg No. 101248W/W-100022). Also referenced as Joint Statutory Auditors on Page 12.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01106_bfaf90b661c9",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00031_d5cd5dc74ac6"
+   ]
+  },
+  {
+   "id": "Q11",
+   "question": "What is the bank's qualitative framework and reporting for the Liquidity Coverage Ratio (LCR) under Basel III?",
+   "category": "ratio_capital",
+   "failure_mode": "ratio_capital",
+   "expected_facts": [
+    "Liquidity Coverage Ratio",
+    "LCR",
+    "regulatory disclosures",
+    "high quality liquid assets"
+   ],
+   "expected_pages": [
+    414,
+    131
+   ],
+   "expected_section": "Qualitative disclosure on LCR / Strategies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 414 discusses qualitative LCR governance and specifies that quantitative Pillar 3 disclosures are available on the bank's website.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01218_66bcb848c3ae",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00401_34933a24dea2"
+   ]
+  },
+  {
+   "id": "Q12",
+   "question": "What were the total gross advances of the bank as of March 31, 2026?",
+   "category": "financial_metric",
+   "failure_mode": "financial_metric_lookup",
+   "expected_facts": [
+    "2,960,018.17 crore"
+   ],
+   "expected_pages": [
+    426
+   ],
+   "expected_section": "Sector-wise Gross Advances (GNPA disclosure table)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "GROSS advances = 2,960,018.17 crore (Page 426 sector table, Total (A)+(B) row; Gross NPA 34,061.19 = 1.15% cross-checks: 34061.19 / 2960018.17 = 1.15%). NOT the Balance Sheet Advances row 29,371,662,693 thousand = 2,937,166.3 crore (Page 378) nor the Director Report Total Advances Rs.29,37,166.3 crore (Page 273) -- both are NET of provisions.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01105_c1d818975824",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00087_0cc8e801a833"
+   ]
+  },
+  {
+   "id": "Q13",
+   "question": "How does the bank classify and govern climate-related risks under TCFD guidelines?",
+   "category": "risk_management",
+   "failure_mode": "risk_question",
+   "expected_facts": [
+    "physical risks",
+    "transition risks",
+    "TCFD",
+    "CSR & ESG Committee",
+    "ESG Apex Council"
+   ],
+   "expected_pages": [
+    168,
+    169
+   ],
+   "expected_section": "Climate Risk Transparency and Reporting",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Pages 168-169 detail classification into physical risks (acute cyclones/floods, chronic sea level/temperature) and transition risks (regulatory, tech, demand), governed by CSR & ESG Committee and ESG Apex Council.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00519_12b09d8829d8",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00526_b43eb34dcac6"
+   ]
+  },
+  {
+   "id": "Q14",
+   "question": "What was the net cash flow generated from operating activities in FY2025-26?",
+   "category": "financial_metric",
+   "failure_mode": "cross_page_evidence",
+   "expected_facts": [
+    "1,236,169,905 thousand",
+    "123,616.99 crore",
+    "1,236,170"
+   ],
+   "expected_pages": [
+    380,
+    381
+   ],
+   "expected_section": "Standalone Cash Flow Statement",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Standalone Cash Flow Statement spans pages 380-381; Net cash flows from operating activities is 1,236,169,905 thousand INR (prior year: 1,451,773,037 thousand).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01109_658b92c189bc",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01111_2362a2612564"
+   ]
+  },
+  {
+   "id": "Q15",
+   "question": "What amount was outstanding under Tier 1 and Tier 2 capital instruments within Borrowings as of March 31, 2026?",
+   "category": "table_lookup",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "250,269,347 thousand",
+    "25,026.93 crore"
+   ],
+   "expected_pages": [
+    384
+   ],
+   "expected_section": "Schedule 4 - Borrowings",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Schedule 4 (Page 384) line item I(iv) specifies Tier 1 and Tier 2 capital instruments of 250,269,347 thousand INR (~₹25,026.93 crore).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01119_af7bc9116731"
+   ]
+  },
+  {
+   "id": "Q16",
+   "question": "What was the total exposure and percentage share of the bank's twenty largest borrowers/customers as of March 31, 2026?",
+   "category": "risk_management",
+   "failure_mode": "risk_question",
+   "expected_facts": [
+    "459,981.61 crore",
+    "9.39%"
+   ],
+   "expected_pages": [
+    434
+   ],
+   "expected_section": "Notes to Accounts - Concentration of Exposures",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 434 explicitly states: Total exposure to twenty largest borrowers/customers is ₹459,981.61 crore, representing 9.39% of total exposure on borrowers/customers (prior year ₹406,518.55 crore, 9.62%).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01302_67d304c9ea79"
+   ]
+  },
+  {
+   "id": "Q17",
+   "question": "What was the total volume of priority sector advances in India as of March 31, 2026?",
+   "category": "table_lookup",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "11,390,461,714 thousand | 1,139,046.17 crore | 11,39,046 crore"
+   ],
+   "expected_pages": [
+    387
+   ],
+   "expected_section": "Schedule 9 - Advances",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Schedule 9 C I (i) on Page 387 lists Priority sector advances in India as 11,390,461,714 thousand INR (up from 8,785,988,737 thousand).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01127_02f5694f6da0"
+   ]
+  },
+  {
+   "id": "Q18",
+   "question": "What was the total dividend per share declared for FY2025-26, and what bonus equity share ratio was approved?",
+   "category": "financial_metric",
+   "failure_mode": "multi_evidence_synthesis",
+   "expected_facts": [
+    "15.50",
+    "13.0",
+    "2.50",
+    "1:1"
+   ],
+   "expected_pages": [
+    41,
+    402
+   ],
+   "expected_section": "Message from the MD & CEO / Notes to Financial Statements",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Synthesizes Page 41 (Total dividend ₹15.50/share including ₹2.50 special interim dividend and ₹13.0 final dividend) and 1:1 bonus equity share issue.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00108_8b8e65928722",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00109_244a81f867e2",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01165_85d7c0cf1d8d"
+   ]
+  },
+  {
+   "id": "Q19",
+   "question": "What technological controls and operational monitoring does the bank deploy through its Cyber Security Operations Centre (CSOC)?",
+   "category": "risk_management",
+   "failure_mode": "cybersecurity_question",
+   "expected_facts": [
+    "AI/ML",
+    "Cyber Security Operations Centre",
+    "CSOC",
+    "Attack Surface Management",
+    "ASM",
+    "Zero-Trust",
+    "micro segmentation"
+   ],
+   "expected_pages": [
+    141,
+    142
+   ],
+   "expected_section": "Key Measures Undertaken by the Bank to Mitigate Information Security Related Risks",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Page 141-142 describes the 24/7 AI/ML-enabled CSOC, Attack Surface Management (ASM) program, Zero-Trust network architecture, micro-segmentation, and XDR.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00437_9f5b6da856ef",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00442_59de4074f5b9"
+   ]
+  },
+  {
+   "id": "Q20",
+   "question": "What are the primary business segments reported by HDFC Bank?",
+   "category": "business_overview",
+   "failure_mode": "business_segment_question",
+   "expected_facts": [
+    "Treasury",
+    "Retail",
+    "Wholesale"
+   ],
+   "expected_pages": [
+    57,
+    470,
+    563,
+    582
+   ],
+   "expected_section": "Segment Reporting / Business Verticals",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Regulatory disclosures (Pages 470, 563, 582) report Treasury, Retail Banking (Digital and Non-Digital), and Wholesale Banking (plus Other Banking Operations).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01763_b306abb4d3f0",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01403_81ef56976774",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01694_15de7f57e1bd"
+   ]
+  },
+  {
+   "id": "Q21",
+   "question": "What was the Net Interest Income (NII) of HDFC Bank for FY2025-26?",
+   "category": "financial_metric",
+   "failure_mode": "ambiguous_terminology",
+   "expected_facts": [
+    "128,686 crore",
+    "1,28,686.0 crore",
+    "1,286,860,273 thousand"
+   ],
+   "expected_pages": [
+    279,
+    379
+   ],
+   "expected_section": "Financial Performance / Standalone Profit and Loss Account",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Director's Report (Page 279) quotes ₹1,28,686.0 crore (up 13.6%). P&L statement (Page 379) gives Interest Earned (3,075,220,673 thousand) minus Interest Expended (1,788,360,400 thousand) = 1,286,860,273 thousand INR.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00819_e45d39417fda",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01107_175c24c89f0f"
+   ]
+  },
+  {
+   "id": "Q22",
+   "question": "Based on the Standalone Profit and Loss Account, calculate the difference between total interest earned and total interest expended for FY2025-26.",
+   "category": "financial_metric",
+   "failure_mode": "calculation_from_explicit_values",
+   "expected_facts": [
+    "1,286,860,273 thousand",
+    "3,075,220,673",
+    "1,788,360,400"
+   ],
+   "expected_pages": [
+    379
+   ],
+   "expected_section": "Standalone Profit and Loss Account",
+   "calculation_required": true,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Requires calculating 3,075,220,673 thousand (Interest earned) minus 1,788,360,400 thousand (Interest expended) = 1,286,860,273 thousand INR (~₹128,686.03 crore). Must show the subtraction step.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01107_175c24c89f0f"
+   ]
+  },
+  {
+   "id": "Q23",
+   "question": "What about total advances?",
+   "category": "conversational_followup",
+   "failure_mode": "followup_query_rewriting",
+   "expected_facts": [
+    "29,371,662,693 thousand",
+    "29,37,166 crore",
+    "2,937,166"
+   ],
+   "expected_pages": [
+    378
+   ],
+   "expected_section": "Standalone Balance Sheet (Schedule 9)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": [
+    {
+     "role": "user",
+     "content": "What was the bank's total deposit base as of March 31, 2026?"
+    },
+    {
+     "role": "assistant",
+     "content": "As of March 31, 2026, HDFC Bank's total deposits stood at ₹31,05,250 crore (31,052,504,740 thousand INR) [hdfc-bank__annual-report__fy2025-26.pdf, Page 378, Standalone Balance Sheet]."
+    }
+   ],
+   "ambiguity_notes": "Elliptical follow-up query requiring QueryRewriter to resolve into 'What was HDFC Bank's total advances as of March 31, 2026?'.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01105_c1d818975824"
+   ]
+  },
+  {
+   "id": "Q24",
+   "question": "What was the bank's exact market share percentage in private commercial credit cards in FY2025-26?",
+   "category": "unanswerable_absent",
+   "failure_mode": "not_disclosed_question",
+   "expected_facts": [
+    "Not disclosed",
+    "not disclosed",
+    "not provided",
+    "not available"
+   ],
+   "expected_pages": [],
+   "expected_section": null,
+   "calculation_required": false,
+   "evidence_should_exist": false,
+   "is_uncertain": true,
+   "conversation_history": null,
+   "ambiguity_notes": "Negative control: The report discloses total cards and general payments data, but does not disclose a separate standalone market share metric for 'private commercial credit cards'. System must state 'Not disclosed' and declare uncertainty.",
+   "target_chunk_ids": []
+  },
+  {
+   "id": "Q25",
+   "question": "What was the valuation cap for the Series C acquisition of FinTech Corp?",
+   "category": "negative_control",
+   "failure_mode": "negative_no_evidence_question",
+   "expected_facts": [
+    "Not disclosed",
+    "not disclosed",
+    "not mentioned",
+    "no evidence"
+   ],
+   "expected_pages": [],
+   "expected_section": null,
+   "calculation_required": false,
+   "evidence_should_exist": false,
+   "is_uncertain": true,
+   "conversation_history": null,
+   "ambiguity_notes": "Negative control: Fabricated corporate transaction absent from HDFC Bank's filings. System must firmly refuse / declare not disclosed and set is_uncertain=True.",
+   "target_chunk_ids": []
+  }
+ ]
+}

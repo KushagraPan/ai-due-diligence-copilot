@@ -1,0 +1,619 @@
+{
+ "version": "2.0.0",
+ "company": "HDFC Bank Limited",
+ "document_name": "hdfc-bank__annual-report__fy2025-26.pdf",
+ "description": "Additional 25-question evaluation set (Q26-Q50) for AI Due Diligence Copilot: branch/ATM/DBU operations, energy and Scope-3 disclosures, subsidiary isolation (HDB, Life, ERGO, Securities, AMC, Capital), governance, risk taxonomy, conversational rewriting, unit-flexible facts, list completeness, and negative controls. All annotations verified against the raw PDF; pages are physical 1-indexed PDF pages.",
+ "questions": [
+  {
+   "id": "Q26",
+   "question": "How many branches did HDFC Bank have as of March 31, 2026?",
+   "category": "operational",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "9,689"
+   ],
+   "expected_pages": [
+    34,
+    43,
+    61,
+    647
+   ],
+   "expected_section": "Enabling Access / Our Presence / Plant Locations",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_bank_general. Verified on pp 34 ('9,689 BRANCHES (INCLUDING 5 OVERSEAS BRANCHES AND 9 DBUs)'), 43 ('branches and DBUs to 9,689 as of March 31, 2026'), 61 ('network of 9,689 branches (including nine DBUs)'), 647 ('9,689 branches and 21,172 ATMs'). Canonical: 9689 branches.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00089_4db0c96084b9",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00172_45f0c0df70e1",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01927_db115b9e5c6d"
+   ]
+  },
+  {
+   "id": "Q27",
+   "question": "How many of those were in rural areas?",
+   "category": "operational",
+   "failure_mode": "followup_query_rewriting",
+   "expected_facts": [
+    "1,645"
+   ],
+   "expected_pages": [
+    61,
+    62
+   ],
+   "expected_section": "Our Presence / Pan India Presence",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": [
+    {
+     "role": "user",
+     "content": "How many branches did HDFC Bank have as of March 31, 2026?"
+    },
+    {
+     "role": "assistant",
+     "content": "As of March 31, 2026, HDFC Bank had 9,689 branches, including 5 overseas branches and 9 Digital Banking Units [hdfc-bank__annual-report__fy2025-26.pdf, Page 61, Our Presence]."
+    }
+   ],
+   "ambiguity_notes": "'Those' = the 9,689 branches from the prior turn; the follow-up is unanswerable without rewriting. Verified p61 ('1,645 branches in rural locations', with 3,213 semi-urban) and p62 Pan-India-Presence table (Rural branches 1,645; Metro 2,792; Urban 2,025; Semi-urban 3,213).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00172_45f0c0df70e1",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00173_4e774b9f45c1"
+   ]
+  },
+  {
+   "id": "Q28",
+   "question": "How many ATMs and Cash Recycler Machines did the bank have as of March 31, 2026?",
+   "category": "operational",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "21,172"
+   ],
+   "expected_pages": [
+    34,
+    62
+   ],
+   "expected_section": "Enabling Access / Pan India Presence",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Combined ATM + Cash Recycler Machine network figure (not ATMs alone). Verified p34 ('21,172 TOTAL ATMS + CASH RECYCLER MACHINES') and p62 table (7,966 + 5,285 + 5,957 + 1,964 = 21,172). Canonical: 21172 machines.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00089_4db0c96084b9",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00173_4e774b9f45c1"
+   ]
+  },
+  {
+   "id": "Q29",
+   "question": "How many Digital Banking Units (DBUs) does HDFC Bank have?",
+   "category": "operational",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "9 DBUs | nine Digital Banking Units"
+   ],
+   "expected_pages": [
+    61,
+    62
+   ],
+   "expected_section": "Our Presence / Pan India Presence",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verified p61 ('HDFC Bank has nine Digital Banking Units (DBUs) located in Haridwar, Chandigarh, Panipat, Faridabad, South 24 Parganas, Pune, Thane, Patna, Salem') and p62 table (DBU column 4/3/0/2 = 9). Locations documented here, not required as facts.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00172_45f0c0df70e1"
+   ]
+  },
+  {
+   "id": "Q30",
+   "question": "What was the bank's total energy consumption in FY2025-26?",
+   "category": "environmental",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "2,181,402 GJ | 2181402 GJ | 2.18 million GJ"
+   ],
+   "expected_pages": [
+    157,
+    613
+   ],
+   "expected_section": "Our Energy Performance / BRSR Principle 6",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_bank_general. Table verified p157 (Diesel DG 211,842.01 + Company Cars 70,186.69 + Petrol Cars 353,581.50 + Grid Electricity 1,199,818.92 + Renewable Electricity 345,972.88 = Total 2,181,402.00 GJ) and BRSR table p613 (21,81,402.00 GJ). Canonical: 2181402.00 GJ. Any mathematically equivalent representation (e.g. 2.18 million GJ) is substantively correct.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00482_eff5c53bec26"
+   ]
+  },
+  {
+   "id": "Q31",
+   "question": "What share of it came from renewable sources?",
+   "category": "environmental",
+   "failure_mode": "followup_query_rewriting",
+   "expected_facts": [
+    "15.86% | 15.86 per cent",
+    "345,972.88 GJ | 345972.88 GJ"
+   ],
+   "expected_pages": [
+    157
+   ],
+   "expected_section": "Our Energy Performance",
+   "calculation_required": true,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": [
+    {
+     "role": "user",
+     "content": "What was the bank's total energy consumption in FY2025-26?"
+    },
+    {
+     "role": "assistant",
+     "content": "Total energy consumption in FY2025-26 was 2,181,402.00 GJ [hdfc-bank__annual-report__fy2025-26.pdf, Page 157, Our Energy Performance]."
+    }
+   ],
+   "ambiguity_notes": "'It' = total energy from the prior turn. Verified p157 ('share of renewable energy in our total energy mix increased from 3.22% in FY25 to 15.86% in FY26'; Renewable Electricity 345,972.88 GJ). Arithmetic cross-check: 345972.88 / 2181402.00 = 15.86%. Renewable = in-house solar rooftops (25 locations) + purchased green energy (233 locations).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00482_eff5c53bec26",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00483_b849ca4a5d17"
+   ]
+  },
+  {
+   "id": "Q32",
+   "question": "What were the bank's total Scope 3 GHG emissions in FY2025-26?",
+   "category": "environmental",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "227,208.97 tCO2e | 227208.97 tCO2e | 0.23 million tCO2e"
+   ],
+   "expected_pages": [
+    162,
+    620
+   ],
+   "expected_section": "Category-wise Scope 3 Emissions / BRSR",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verified p162 table (Total Scope 3 Emissions 227,208.97 tCO2e; Total GHG 555,553.89) and BRSR p620 (2,27,208.97 tCO2e). Covers 5 reported categories (3, 5, 6, 7, 8). Canonical: 227208.97 tCO2e.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00503_67f458e9b145"
+   ]
+  },
+  {
+   "id": "Q33",
+   "question": "Which Scope 3 categories does the bank's FY2025-26 reporting cover?",
+   "category": "environmental",
+   "failure_mode": "list_completeness",
+   "expected_facts": [
+    "Category 3",
+    "Category 5",
+    "Category 6",
+    "Category 7",
+    "Category 8"
+   ],
+   "expected_pages": [
+    161,
+    162
+   ],
+   "expected_section": "Scope 3 (Other Indirect Emissions)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verbatim list verified p161 ('Scope 3 reporting includes Categories 3, 5, 6, 7, and 8, covering fuel- and energy-related activities, waste generation, employee business travel, employee commute, and purchased electricity in other facilities'). Financed emissions (Category 15, 34.96 Mt, p173) are reported separately and must NOT be listed as part of the Scope 3 total.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00499_23cdab4b3f6f",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00503_67f458e9b145"
+   ]
+  },
+  {
+   "id": "Q34",
+   "question": "What were the Scope 3 business-travel emission components in FY2025-26, and what do they total?",
+   "category": "environmental",
+   "failure_mode": "calculation_from_explicit_values",
+   "expected_facts": [
+    "12,790.78",
+    "6,843.58",
+    "18.90",
+    "19,653.26"
+   ],
+   "expected_pages": [
+    162
+   ],
+   "expected_section": "Category-wise Scope 3 Emissions",
+   "calculation_required": true,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Component rows verified p162 table (Category 6 Business Travel: Cab hire 12,790.78 + Air travel 6,843.58 + Rail travel 18.90 tCO2e). Total 19,653.26 tCO2e is DERIVED (12790.78 + 6843.58 + 18.90 = 19653.26); the category-total row is not machine-extractable, so this tests grounded arithmetic, not verbatim recall.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00503_67f458e9b145"
+   ]
+  },
+  {
+   "id": "Q35",
+   "question": "What was the bank's total estimated water consumption in FY2025-26?",
+   "category": "environmental",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "519,272.97 KL | 519272.97 kilolitres"
+   ],
+   "expected_pages": [
+    168,
+    614
+   ],
+   "expected_section": "Water Management / BRSR",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verified p168 narrative ('Total estimated water consumption for FY 2025-26 stands at approximately 519,272.97 kilolitres', down 0.24% YoY) and BRSR table p614. Context (not required): withdrawal 2,596,364.87 KL, discharge 2,077,091.90 KL.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00518_f520968e779c"
+   ]
+  },
+  {
+   "id": "Q36",
+   "question": "What is the total fund size managed by HDFC Capital Advisors?",
+   "category": "subsidiary",
+   "failure_mode": "negative_no_evidence_question",
+   "expected_facts": [
+    "Not disclosed",
+    "not disclosed",
+    "not available",
+    "no evidence"
+   ],
+   "expected_pages": [],
+   "expected_section": null,
+   "calculation_required": false,
+   "evidence_should_exist": false,
+   "is_uncertain": true,
+   "conversation_history": null,
+   "ambiguity_notes": "Negative control (entity scope: hdfc_capital). Full-text search confirms NO fund-size/AUM disclosure for HDFC Capital Advisors anywhere in the report. HCAL appears only for: 89.68% shareholding (pp 311/511/584), ESOP/option plans (pp 541-542), and Annexure-3 consolidated contribution (net assets 588.91 crore, profit 141.10 crore, pp 326/573-574) -- none of which is a managed fund size and must not be substituted.",
+   "target_chunk_ids": []
+  },
+  {
+   "id": "Q37",
+   "question": "What was HDB Financial Services' total loan book as of March 31, 2026?",
+   "category": "subsidiary",
+   "failure_mode": "financial_metric_lookup",
+   "expected_facts": [
+    "1,18,493 crore | 118493 crore"
+   ],
+   "expected_pages": [
+    79,
+    305
+   ],
+   "expected_section": "Power of the Group / Performance of Subsidiary Companies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdb_financial_services (Bank holds 74.12% stake; non-deposit-taking NBFC). Verified p79 and p305 ('Total Loan Book stood at 1,18,493 crore as on March 31, 2026 compared to 1,06,878 crore as on March 31, 2025, a growth of 10.87 per cent'). Parent-bank advances figures (~2.94 lakh crore) must not be substituted.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00225_a83a13d21193",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00888_67868bf8b6ec"
+   ]
+  },
+  {
+   "id": "Q38",
+   "question": "What was its profit after tax for the same period?",
+   "category": "subsidiary",
+   "failure_mode": "followup_query_rewriting",
+   "expected_facts": [
+    "2,544 crore | 2544 crore"
+   ],
+   "expected_pages": [
+    79,
+    305
+   ],
+   "expected_section": "Power of the Group / Performance of Subsidiary Companies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": [
+    {
+     "role": "user",
+     "content": "What was HDB Financial Services' total loan book as of March 31, 2026?"
+    },
+    {
+     "role": "assistant",
+     "content": "HDB Financial Services' total loan book stood at ₹1,18,493 crore as of March 31, 2026 [hdfc-bank__annual-report__fy2025-26.pdf, Page 305, Performance of Subsidiary Companies]."
+    }
+   ],
+   "ambiguity_notes": "'Its' = HDB Financial Services; unanswerable without the prior turn. Verified p79/p305 ('Profit After Tax stood at 2,544 crore as on March 31, 2026 compared to 2,176 crore'). Standalone-HDB basis: Annexure-3 consolidated-contribution PAT of 2,458.73 crore (p326) is a different basis and must not be substituted; parent-bank PAT (74,671.29 crore) must not leak in.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00225_a83a13d21193",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00888_67868bf8b6ec"
+   ]
+  },
+  {
+   "id": "Q39",
+   "question": "What were HDFC Life's Value of New Business and VNB margin for FY2025-26?",
+   "category": "subsidiary",
+   "failure_mode": "financial_metric_lookup",
+   "expected_facts": [
+    "4,034 crore | 4034 crore",
+    "24.2%"
+   ],
+   "expected_pages": [
+    78,
+    305
+   ],
+   "expected_section": "Power of the Group / Performance of Subsidiary Companies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_life. Verified p78 and p305 ('Value of New Business (VNB) stood at 4,034 crore with VNB margin of 24.2 per cent, for FY 2025-26'). Context (not required): EV 62,139 crore, RoEV 15.0%, PAT 1,910 crore, solvency 177%. Must not be confused with HDFC AMC AUM figures.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00223_b40bc52157e2",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00888_67868bf8b6ec"
+   ]
+  },
+  {
+   "id": "Q40",
+   "question": "What was HDFC ERGO's profit after tax for FY2025-26, and how did it compare with the prior year?",
+   "category": "subsidiary",
+   "failure_mode": "year_over_year_comparison",
+   "expected_facts": [
+    "813 crore",
+    "500 crore"
+   ],
+   "expected_pages": [
+    80,
+    306
+   ],
+   "expected_section": "Power of the Group / Performance of Subsidiary Companies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_ergo (Bank holds 50.3% stake, p80). Verified p80 and p306 ('Profit After Tax for the year ended March 31, 2026, was 813 crore compared to 500 crore for FY2024-25'). Standalone-ERGO basis: Annexure-3 consolidated profit 769.29 crore (p326) is a different basis. Context: market share 4.5% (from 0.8% in FY2007-08).",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00229_c030dfd44b10",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00895_51c39fe24c39"
+   ]
+  },
+  {
+   "id": "Q41",
+   "question": "What was the size of HDFC Securities' Margin Trading Funding (MTF) portfolio as of March 31, 2026?",
+   "category": "subsidiary",
+   "failure_mode": "financial_metric_lookup",
+   "expected_facts": [
+    "7,137 crore | 7137 crore"
+   ],
+   "expected_pages": [
+    82,
+    308
+   ],
+   "expected_section": "Power of the Group / Performance of Subsidiary Companies",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_securities (Bank holds 94.01% stake). Verified p82 ('MTF portfolio aggregated 7,137 crore') and p308 ('aggregated 7,137 crore as of March 31, 2026'). Context (not required): PAT 930 crore, EPS 522, equity trade volumes 6.8 lakh crore, 6th on NSE by active clients.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00233_5d4112070c84",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00901_90f6661a912b"
+   ]
+  },
+  {
+   "id": "Q42",
+   "question": "What was HDFC AMC's Annual Average AUM for FY2025-26?",
+   "category": "subsidiary",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "8,90,551 crore | 890551 crore"
+   ],
+   "expected_pages": [
+    308
+   ],
+   "expected_section": "Performance of Subsidiary Companies (financial highlights table)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Entity scope: hdfc_amc (Bank holds 52.37% stake, p307). Verified p308 financial-highlights table ('Annual Average AUM 8,90,551 | 7,48,071 | 19' % YoY, Rs. in crore). This is ANNUAL average -- 'QAAUM'/'Quarterly Average AUM' appears nowhere in the report and must not be claimed. Distinct from HDFC Life AUM (5.3 lakh crore incl. pension subsidiary) and from AMC closing AUM (over 8,43,994 crore, 11.4% share). Canonical: 890551 crore.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00900_e836d298f248"
+   ]
+  },
+  {
+   "id": "Q43",
+   "question": "When and how was HDFC Bank's 32nd Annual General Meeting convened?",
+   "category": "governance",
+   "failure_mode": "direct_factual_lookup",
+   "expected_facts": [
+    "August 5, 2026",
+    "Video Conference | video-conferencing | VC"
+   ],
+   "expected_pages": [
+    1,
+    2
+   ],
+   "expected_section": "Notice of AGM",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verified p1 (covering letter: 'AGM to be held on Wednesday, August 5, 2026 at 02:00 p.m. (IST) through two-way video-conferencing') and p2 (Notice: '32ND ANNUAL GENERAL MEETING ... ON WEDNESDAY, AUGUST 5, 2026 AT 2:00 P.M. IST THROUGH VIDEO CONFERENCE (VC)'). Context: NSDL remote + live e-voting, no proxies (pp 5-9). Prior-year AGMs (p357) must not be substituted.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00000_2dd5430a0cd9",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00001_c92912653891"
+   ]
+  },
+  {
+   "id": "Q44",
+   "question": "How many sexual harassment (PoSH) complaints were received in FY2025-26, and how many were pending at year-end?",
+   "category": "governance",
+   "failure_mode": "table_lookup",
+   "expected_facts": [
+    "93",
+    "19"
+   ],
+   "expected_pages": [
+    363
+   ],
+   "expected_section": "Disclosures under the Sexual Harassment of Women at Workplace Act",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verified p363 table row '2025-26: 93 received, 74 disposed, 19 pending*' with footnote '*The 19 pending cases were disposed by the Internal Committee as on the date of this Report'. 93 = received, 19 = pending (not disposed). Prior years (77/65/12; 75/65/10) must not be substituted.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c01080_5db1fd2cdce4"
+   ]
+  },
+  {
+   "id": "Q45",
+   "question": "Which risk types does the bank's risk management framework cover?",
+   "category": "risk_management",
+   "failure_mode": "list_completeness",
+   "expected_facts": [
+    "Credit Risk",
+    "Market Risk",
+    "Compliance Risk",
+    "Operational Risk",
+    "Climate Risk",
+    "Liquidity Risk",
+    "Reputation Risk",
+    "Technology Risk",
+    "Cyber and Data Risk",
+    "spill-over from Subsidiaries"
+   ],
+   "expected_pages": [
+    83,
+    126
+   ],
+   "expected_section": "Our Value Creation Model / Risk Management Approach",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "10-item taxonomy verified p83 value-creation diagram (Credit 1, Market 2, Compliance 3, Operational 4, Climate 5, Liquidity 6, Reputation 7, Technology 8, Cyber and Data 9, spill-over from Subsidiaries 10), corroborated by p126 sentence (adds 'model' risk alongside credit, market, liquidity, operational, cybersecurity, technology, compliance, reputational). Completeness over all 10 is the test.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00234_45210c839e2c",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00235_66b42c1ed53f",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00236_95d2c0c2bd09",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00370_89fccadf64d5"
+   ]
+  },
+  {
+   "id": "Q46",
+   "question": "What are the bank's identified material topics on the environment dimension?",
+   "category": "governance",
+   "failure_mode": "list_completeness",
+   "expected_facts": [
+    "Climate Change",
+    "Sustainable & Responsible Financing",
+    "Sustainable Procurement"
+   ],
+   "expected_pages": [
+    88
+   ],
+   "expected_section": "Materiality / Key Material Topics Identified",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Verbatim environment pillar verified p88 ('Key Material Topics Identified: Environment - Climate Change, Sustainable & Responsible Financing, Sustainable Procurement'). Full set is 16 topics across E/S/G (double materiality, GRI 3); only the 3 environment topics are required here.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00258_4e3e9490be61"
+   ]
+  },
+  {
+   "id": "Q47",
+   "question": "What scale had PayZapp and SmartHub Vyapar reached as of FY2025-26?",
+   "category": "operational",
+   "failure_mode": "multi_evidence_synthesis",
+   "expected_facts": [
+    "2.1 crore registrations | 2.08 crore",
+    "52 lakh monthly active users | 50 lakh monthly active users",
+    "20.4 lakh merchants",
+    "4.73 lakh crore"
+   ],
+   "expected_pages": [
+    116,
+    281
+   ],
+   "expected_section": "Strategy in Action / Directors Report (payments business)",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Two-evidence synthesis. Verified p116 (PayZapp: 'over 2.1 crore registrations and more than 52 lakh monthly active users') and p281 (SmartHub Vyapar: 'over 20.4 lakh merchants, collectively processing 4.73 lakh crore'; PayZapp 'about 2.08 crore registered users' + 'over 50 lakh monthly active users' accepted as equivalent representations). SmartGateway (90,000 merchants, 27,000 crore) is a different platform and must not be substituted.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00342_7b2126bc9604",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00826_98ddc9520643"
+   ]
+  },
+  {
+   "id": "Q48",
+   "question": "What share of the bank's financial transactions are conducted through digital channels?",
+   "category": "operational",
+   "failure_mode": "ambiguous_terminology",
+   "expected_facts": [
+    "98%"
+   ],
+   "expected_pages": [
+    30,
+    83
+   ],
+   "expected_section": "Key Financial Highlights / Value Creation Model",
+   "calculation_required": false,
+   "evidence_should_exist": true,
+   "is_uncertain": false,
+   "conversation_history": null,
+   "ambiguity_notes": "Ambiguity stress test. The exact phrase 'financial transactions' matches p30 ('98% Of all Financial Transactions are Digital') and p83 ('98% of our financial transactions are digital'). Two nearby variants use different definitions and must not be substituted: p91 ('97% of all financial transactions are enabled through digital channels') and p180 ('approximately 90 per cent of transactions now taking place digitally'). A substantively correct answer gives 98% for financial transactions and ideally notes the definitional variants rather than guessing.",
+   "target_chunk_ids": [
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00073_b53f9829f494",
+    "hdfc-bank__annual-report__fy2025-26.pdf_c00234_45210c839e2c"
+   ]
+  },
+  {
+   "id": "Q49",
+   "question": "How many start-ups were onboarded under the SmartUp programme in FY2025-26?",
+   "category": "operational",
+   "failure_mode": "not_disclosed_question",
+   "expected_facts": [
+    "Not disclosed",
+    "not disclosed",
+    "not available",
+    "no evidence"
+   ],
+   "expected_pages": [],
+   "expected_section": null,
+   "calculation_required": false,
+   "evidence_should_exist": false,
+   "is_uncertain": true,
+   "conversation_history": null,
+   "ambiguity_notes": "Negative control. Full-text search finds 'SmartUp' only twice, both historical timeline entries on p64 ('Launched SmartUp programme for Start-Ups', 2016; 'Launched SmartUp Zones', 2017). No FY2025-26 SmartUp counts, volumes, or metrics are disclosed anywhere in the report.",
+   "target_chunk_ids": []
+  },
+  {
+   "id": "Q50",
+   "question": "What was the acquisition cost disclosed for NovaPay Digital?",
+   "category": "unanswerable_absent",
+   "failure_mode": "negative_no_evidence_question",
+   "expected_facts": [
+    "Not disclosed",
+    "not disclosed",
+    "not mentioned",
+    "no evidence"
+   ],
+   "expected_pages": [],
+   "expected_section": null,
+   "calculation_required": false,
+   "evidence_should_exist": false,
+   "is_uncertain": true,
+   "conversation_history": null,
+   "ambiguity_notes": "Negative control: 'NovaPay' has zero hits in a full-text search of the report -- a fabricated entity. System must refuse / declare not disclosed with is_uncertain=True, not invent terms.",
+   "target_chunk_ids": []
+  }
+ ]
+}

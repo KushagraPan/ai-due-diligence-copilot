@@ -1,0 +1,9 @@
+# Normalize text files to LF so the repo is consistent across platforms.
+* text=auto eol=lf
+
+# Binary assets
+*.mp4 binary
+*.jpg binary
+*.png binary
+*.pdf binary
+*.npy binary
