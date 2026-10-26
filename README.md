@@ -3,7 +3,7 @@
 **Source-grounded RAG for financial due diligence.** Ask a question about a 678-page exchange filing and get an answer where factual claims are tied to specific pages and sections — with citations checked by deterministic Python before they reach the user.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-570-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-581-brightgreen)](tests/)
 [![Lint: ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 [![Types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](https://mypy-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -231,6 +231,16 @@ uv run pytest -q
 
 Expected: no failures. Tests that need the source PDF or optional `torch` skip automatically. You do not need a live cluster or real API keys for this step.
 
+The tests avoid live services by design:
+
+- **Generator tests** inject a fake OpenAI client (`MagicMock(spec=openai.OpenAI)`), so `chat.completions.create` never leaves the process.
+- **Weaviate tests** patch `weaviate.connect_to_weaviate_cloud` or pass a fake client/collection.
+- **Retrieval tests** use a deterministic local embedding provider and a mocked Weaviate collection.
+- **Integration/CLI tests** assemble `DiligencePipeline` with mocked retriever, reranker, query rewriter, and generator components.
+- **Blank `.env` values** only satisfy settings loading. Tests that need a real connection inject dummy settings or mocks instead of calling out.
+
+In short, the suite tests the application logic at its seams. The network clients are replaced by fakes, so no credential is ever exercised.
+
 ### Configure live services
 
 For live ingestion and Q&A, edit `.env` and set:
@@ -345,12 +355,12 @@ Inside the interactive session:
 ## Testing
 
 ```bash
-uv run pytest -q          # 570 collected; PDF/torch tests skip if absent
+uv run pytest -q          # 581 collected; PDF/torch tests skip if absent
 uv run ruff check src tests
 uv run mypy src
 ```
 
-These checks are offline and do not need a live Weaviate cluster or OpenAI key. The tests do need a `.env` file; the blank values from `.env.example` are enough. Tests that need the source PDF or optional `torch` skip when those are absent; with both installed, all 570 run.
+These checks are offline and do not need a live Weaviate cluster or OpenAI key. The tests do need a `.env` file; the blank values from `.env.example` are enough. Tests that need the source PDF or optional `torch` skip when those are absent; with both installed, all 581 run.
 
 The suite covers extraction and table parsing, layout invariants, chunk provenance, metadata preservation, hybrid retrieval, reranking fallbacks, context assembly, grounding rules, citation verification, refusal behavior, and the CLI.
 

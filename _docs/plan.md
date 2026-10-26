@@ -196,6 +196,7 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Free-form adjacent citations are no longer allowed to pass vacuously; a token with no preceding claim text is flagged.
   - Added regressions for all one-to-many/many-to-many patterns, unsupported second citations, unknown IDs, and the HDFC branch/DBU output.
   - Tests: 581 pass; ruff + mypy strict clean.
+  - README metadata corrected from 570 to 581 tests; added the concrete mock/injection mechanisms that let the suite run without OpenAI or Weaviate credentials.
 
 ---
 
