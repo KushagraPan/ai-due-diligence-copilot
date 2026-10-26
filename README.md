@@ -1,9 +1,9 @@
 # AI Due Diligence Co-pilot
 
-**Source-grounded RAG for financial due diligence.** Ask a question about a 678-page annual report and get an answer where factual claims are tied to specific pages and sections — with citations checked by deterministic Python before they reach the user.
+**Source-grounded RAG for financial due diligence.** Ask a question about a 678-page exchange filing and get an answer where factual claims are tied to specific pages and sections — with citations checked by deterministic Python before they reach the user.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-552%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-567%20passing-brightgreen)](tests/)
 [![Lint: ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 [![Types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](https://mypy-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -22,7 +22,7 @@ Most RAG demos stop at "the model found something relevant." This project treats
 
 ## What this is
 
-A production-oriented, single-document vertical slice built on the **HDFC Bank FY2025-26 Annual Report (678 pages)**:
+A production-oriented, single-document vertical slice built on the **HDFC Bank FY2025-26 exchange filing (678 pages: 629-page Integrated Annual Report plus filing paperwork)**:
 
 - **1,984 document-aware chunks** with page numbers, section headings, heading paths, element IDs, and table provenance.
 - **Hybrid retrieval** over Weaviate Cloud (dense vectors + BM25, Top 40 candidates).
@@ -44,13 +44,15 @@ The interface is a terminal CLI designed for analysts: ask a question, read the 
 > `[3]` HDFC Bank Annual Report FY2025-26 — Page 43 — CUSTOMER CENTRICITY  
 > `[4]` HDFC Bank Annual Report FY2025-26 — Page 34, 35 — CHAIRMAN'S MESSAGE
 
+Page numbers in this example are physical PDF pages of the 678-page exchange filing, not the 629-page standalone report.
+
 The same answer was returned by the recorded benchmark run behind the demo. Unanswerable questions take the other path: an explicit "not disclosed in the ingested document" response rather than an invented number.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    PDF["Annual report PDF<br/>678 pages"] --> EXT
+    PDF["Exchange filing PDF<br/>678 pages"] --> EXT
 
     subgraph OFFLINE["Offline ingestion"]
         EXT["Layout-aware extraction<br/>PyMuPDF + table quality gate"] --> CHK["Document-aware chunking<br/>1,984 chunks with provenance"]
@@ -180,6 +182,8 @@ The test suite does not require the PDF. To reproduce ingestion and page citatio
 data/raw/hdfc-bank__annual-report__fy2025-26.pdf
 ```
 
+`data/raw/` is git-ignored; only `data/raw/.gitkeep` is tracked, so the PDF never enters the repository.
+
 Expected page count: **678**
 
 Expected SHA-256: `92de3c75b6fc05afe8731e97705c9d3534cc192e677af02f4b325e3d82eafca6`
@@ -187,7 +191,11 @@ Expected SHA-256: `92de3c75b6fc05afe8731e97705c9d3534cc192e677af02f4b325e3d82eaf
 Verify it before indexing:
 
 ```bash
+# Page count is always fatal; a checksum mismatch only warns.
 uv run python scripts/verify_source.py
+
+# Require the exact pinned bytes before rebuilding the index.
+uv run python scripts/verify_source.py --strict-checksum
 ```
 
 The verifier fails on a missing file or wrong page count. A checksum mismatch is a warning by default because HDFC may re-upload the same content with different bytes; use `--strict-checksum` to make it fatal.
@@ -237,7 +245,7 @@ Inside the interactive session:
 ## Testing
 
 ```bash
-uv run pytest -q          # 552 tests
+uv run pytest -q          # 567 tests
 uv run ruff check src tests
 uv run mypy src
 ```

@@ -184,6 +184,7 @@ The original engineering implementation plan is superseded by [`architecture.md`
   - Added `src/due_diligence/core/source_check.py` and wired it into `PDFParser.parse` plus the PDF-dependent ingestion, indexing, chunking, layout, table, and benchmark scripts. Missing files now produce one README-linked error instead of a raw traceback.
   - Documented the canonical 678-page exchange filing (1-page covering letter + 24-page AGM notice + 629-page Integrated Annual Report + 22-page Annexure 7 extract + 2-page debenture-holder web-link letter) and the 25-page offset versus the standalone website report in README > Source document.
   - Verified both public exchange copies (NSE and BSE) byte-for-byte against the pinned SHA-256; README lists NSE as primary and BSE as alternate because BSE may block direct access.
+  - Refreshed README metadata: test badge/comment to 567, 678-page exchange-filing wording, bundle-page note on example citations, explicit `--strict-checksum` commands, and `data/raw` tracking note.
   - Tests: 567 pass; ruff + mypy strict clean.
 
 ---
