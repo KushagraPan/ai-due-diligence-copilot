@@ -3,7 +3,7 @@
 **Source-grounded RAG for financial due diligence.** Ask a question about a 678-page exchange filing and get an answer where factual claims are tied to specific pages and sections — with citations checked by deterministic Python before they reach the user.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-567%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-570-brightgreen)](tests/)
 [![Lint: ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 [![Types: mypy strict](https://img.shields.io/badge/types-mypy%20strict-blue)](https://mypy-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -11,6 +11,12 @@
 [![Watch the 81-second product walkthrough](docs/assets/demo-poster.jpg)](docs/assets/demo.mp4)
 
 **[Watch the 81-second walkthrough](docs/assets/demo.mp4)** (3.7 MB, MP4)
+
+**New here? Choose a path:**
+
+- **Reviewing or testing the code:** no live credentials needed. See [Verify without credentials](#verify-without-credentials).
+- **Running live Q&A:** you need your own Weaviate Cloud cluster, OpenAI key, and the 678-page filing. See [Quick start](#quick-start).
+- **Learning the implementation:** read [Architecture](#architecture), then the [19-part learning series](docs/learning/).
 
 ---
 
@@ -22,6 +28,8 @@ Most RAG demos stop at "the model found something relevant." This project treats
 
 ## What this is
 
+**RAG in one sentence:** find the right passages first, then ask the AI to answer using only those passages.
+
 A production-oriented, single-document vertical slice built on the **HDFC Bank FY2025-26 exchange filing (678 pages: 629-page Integrated Annual Report plus filing paperwork)**:
 
 - **1,984 document-aware chunks** with page numbers, section headings, heading paths, element IDs, and table provenance.
@@ -31,7 +39,23 @@ A production-oriented, single-document vertical slice built on the **HDFC Bank F
 - **Deterministic citation verification** that checks headline numbers and entities against the cited passage, and flags anything it cannot support.
 - **Explicit refusal** when the document does not contain the answer.
 
-The interface is a terminal CLI designed for analysts: ask a question, read the answer, inspect sources, or open a developer trace of every pipeline stage.
+The interface is a terminal CLI (a text-only app you run in the terminal) designed for analysts: ask a question, read the answer, inspect sources, or open a developer trace of every pipeline stage.
+
+### Plain-English glossary
+
+- **Chunk:** one small piece of the PDF that can be searched on its own.
+- **Embedding:** a list of numbers that represents the meaning of a chunk. Similar text gets similar numbers.
+- **Vector database (Weaviate):** a search engine for embeddings and keywords.
+- **HNSW:** the fast index Weaviate uses to find vectors that are close to the question vector.
+- **Hybrid search:** finding chunks by both exact words (BM25) and meaning (vectors).
+- **Retrieval:** collecting candidate chunks that might answer the question.
+- **Reranking:** putting the most useful chunks first and discarding the rest.
+- **LLM:** the language model that writes or ranks text (here, OpenAI `gpt-4o` and `gpt-4o-mini`).
+- **Generation:** the AI writing an answer from the selected chunks.
+- **Context block:** the selected chunks packaged for the AI, with short labels such as `[E1]`.
+- **Evidence ID:** a short token like `[E1]` that points to one chunk, so the AI never types a page number from memory.
+- **Citation:** the page and section shown next to a claim.
+- **Verification:** Python checking that the AI's numbers and page references actually appear in the cited chunk.
 
 ### Example output
 
@@ -46,9 +70,27 @@ The interface is a terminal CLI designed for analysts: ask a question, read the 
 
 Page numbers in this example are physical PDF pages of the 678-page exchange filing, not the 629-page standalone report.
 
-The same answer was returned by the recorded benchmark run behind the demo. Unanswerable questions take the other path: an explicit "not disclosed in the ingested document" response rather than an invented number.
+The same answer was returned by the recorded benchmark run behind the demo. Live source counts can vary slightly with index and model updates; the verifier flags any claim it cannot support. Unanswerable questions take the other path: an explicit "not disclosed in the ingested document" response rather than an invented number.
 
 ## Architecture
+
+### What happens, in plain English
+
+**Once, before anyone asks a question:**
+
+1. Read the PDF.
+2. Split it into small chunks.
+3. Turn each chunk into numbers (embeddings).
+4. Store the chunks and numbers in Weaviate.
+
+**For every question:**
+
+1. Rewrite the question if it refers to earlier chat.
+2. Find 40 candidate chunks.
+3. Rerank them and keep the best 7.
+4. Put those 7 chunks into a context block with evidence IDs.
+5. Ask the AI to answer using only that evidence.
+6. Check the answer's numbers and citations in Python before showing it.
 
 ```mermaid
 flowchart TB
@@ -134,26 +176,72 @@ uv run python scripts/run_b9_evaluation.py \
 
 ## Quick start
 
+### The short version
+
+1. [Install the code](#setup).
+2. [Run the tests without accounts](#verify-without-credentials).
+3. [Configure live services](#configure-live-services) — only for live Q&A.
+4. [Get the exact PDF](#source-document) — only for live Q&A.
+5. [Build the index](#build-the-index) — only for live Q&A.
+6. [Ask questions](#ask-questions).
+
+Steps 1–2 prove the project works on your computer. Steps 3–6 are only needed to ask real questions about the document.
+
 ### Prerequisites
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/)
-- An OpenAI API key
-- A Weaviate Cloud cluster
-- The source PDF (not committed because of size and copyright; see [Source document](#source-document))
+For tests and code review:
+
+- Python 3.11+ — the language the project is written in.
+- [uv](https://docs.astral.sh/uv/) — installs the project's Python packages and runs its commands.
+- No live Weaviate or OpenAI credentials.
+
+For live Q&A, additionally:
+
+- An OpenAI API key — lets the code use OpenAI's embedding and language models.
+- A Weaviate Cloud cluster — the search database that stores the chunks and vectors. The code uses `connect_to_weaviate_cloud`, not a local vector store.
+- The source PDF — the document the system will read and answer questions about (see [Source document](#source-document)).
 
 ### Setup
 
 ```bash
-git clone <repository-url>
+# Download the project code.
+git clone https://github.com/KushagraPan/ai-due-diligence-copilot.git
+
+# Move into the project folder.
 cd ai-due-diligence-copilot
 
-uv sync
+# Install the Python packages. --extra dev also installs pytest, ruff, and mypy.
+uv sync --extra dev
 
-cp .env.example .env
-# Fill in OPENAI_API_KEY, WEAVIATE_URL, and WEAVIATE_API_KEY.
-# GEMINI_API_KEY is optional and only enables Tier 2 table extraction.
+# Create your local settings file from the template.
+# This works on Windows, macOS, and Linux.
+uv run python -c "from shutil import copyfile; copyfile('.env.example', '.env')"
 ```
+
+The `.env` file is gitignored. Never commit it.
+
+### Verify without credentials
+
+The test suite is mocked and does not call Weaviate or OpenAI. The blank values in `.env.example` are enough.
+
+```bash
+# Run the tests. No accounts needed.
+uv run pytest -q
+```
+
+Expected: no failures. Tests that need the source PDF or optional `torch` skip automatically. You do not need a live cluster or real API keys for this step.
+
+### Configure live services
+
+For live ingestion and Q&A, edit `.env` and set:
+
+- `OPENAI_API_KEY` — create one at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+- `WEAVIATE_URL` — the Weaviate Cloud **REST endpoint**, including `https://` (e.g. `https://xxx.weaviate.network`). Do not paste only the hostname or the console URL.
+- `WEAVIATE_API_KEY` — the cluster API key.
+
+Create a cluster in the [Weaviate Cloud console](https://console.weaviate.cloud/). A Sandbox/Serverless cluster should be enough for 1,984 chunks; check current plan limits. This repo is wired to Weaviate Cloud, so a local Docker Weaviate is not supported out of the box.
+
+Live runs call OpenAI and are billed. The first index build embeds 1,984 chunks; each question uses `gpt-4o-mini` for rewriting/reranking and `gpt-4o` for generation. Only send documents to services you are authorized to use.
 
 ### Source document
 
@@ -165,7 +253,7 @@ The PDF is not committed because of size and copyright. This repository is pinne
 - 22-page Annexure 7 extract (printed pages 2-23)
 - 2-page debenture-holder web-link letter dated 10 July 2026
 
-Download the exact file:
+Download the exact file, then save it with the exact filename shown below:
 
 - NSE (reliable): [HDFCBANK3_10072026234853_Final_IAR.pdf](https://nsearchives.nseindia.com/corporate/HDFCBANK3_10072026234853_Final_IAR.pdf)
 - BSE (alternate; may show "Access Denied" when opened directly): [BSE filing 39fa5483-1cd9-47bf-89e8-4f58a1ae1783](https://www.bseindia.com/xml-data/corpfiling/AttachHis/39fa5483-1cd9-47bf-89e8-4f58a1ae1783.pdf)
@@ -176,17 +264,19 @@ Official annual reports page: [hdfc.bank.in/about-us/investor-relations/annual-r
 
 At the time of writing (October 2026), that page publishes the **629-page standalone Integrated Annual Report** alongside the AGM notice as separate PDFs, not the combined 678-page filing. The standalone report's PDF page numbers are **25 lower** than the citations in this repository (`repository page = standalone report page + 25`). Downloading only the standalone report will fail `verify_source.py` and will not line up with the page citations.
 
-The test suite does not require the PDF. To reproduce ingestion and page citations, place the 678-page exchange filing at:
+The test suite does not require the PDF or live credentials. To reproduce ingestion and page citations, place the 678-page exchange filing at:
 
 ```text
 data/raw/hdfc-bank__annual-report__fy2025-26.pdf
 ```
 
-`data/raw/` is git-ignored; only `data/raw/.gitkeep` is tracked, so the PDF never enters the repository.
+The filename must match exactly; the scripts look for this path. `data/raw/` is git-ignored; only `data/raw/.gitkeep` is tracked, so the PDF never enters the repository.
 
 Expected page count: **678**
 
 Expected SHA-256: `92de3c75b6fc05afe8731e97705c9d3534cc192e677af02f4b325e3d82eafca6`
+
+SHA-256 is a fingerprint of the file. Matching it means your download is byte-for-byte identical to the file used for this project's benchmark.
 
 Verify it before indexing:
 
@@ -198,19 +288,27 @@ uv run python scripts/verify_source.py
 uv run python scripts/verify_source.py --strict-checksum
 ```
 
+Success looks like `Pages: 678` and `OK: source document verified.` If you see that, continue.
+
 The verifier fails on a missing file or wrong page count. A checksum mismatch is a warning by default because HDFC may re-upload the same content with different bytes; use `--strict-checksum` to make it fatal.
 
 ### Build the index
 
+This is a one-time step per cluster. It reads the PDF, splits it into chunks, turns each chunk into numbers, and uploads those numbers to Weaviate. The local embeddings and the Weaviate index are not committed.
+
 ```bash
-# Extract, chunk, and embed the document; writes the canonical chunks + .npy vectors
+# Read the PDF, split it into chunks, and create embeddings.
+# This calls OpenAI and writes local files.
 uv run python scripts/run_hdfc_embedding_validation.py --full
 
-# Create the Weaviate collection and index all chunks
+# Create the Weaviate collection and upload the embeddings.
+# This does not call OpenAI; it uses the local files from the previous step.
 uv run python scripts/run_hdfc_weaviate_indexing.py --recreate
 ```
 
-`--recreate` deletes and rebuilds the `DiligenceChunk` collection. Omit it when the collection already exists and you only want to add data.
+Success looks like `Generated 1,984 canonical chunks` from the first command and `WEAVIATE CLOUD INDEXING & VERIFICATION COMPLETE` with `Indexed Objects: 1,984` from the second.
+
+`--recreate` deletes and rebuilds the `DiligenceChunk` collection. Omit it when the collection already exists and you only want to add data. Run it only against your own cluster.
 
 ### Ask questions
 
@@ -231,6 +329,8 @@ uv run diligence "What are the key risks?" --no-evidence
 uv run diligence "Summarize the liquidity coverage ratio" --top-n 60 --top-k 10
 ```
 
+Success looks like a direct answer with numbered citations and a source list. Try a question the filing cannot answer; it should say it is not disclosed instead of inventing one.
+
 Inside the interactive session:
 
 ```text
@@ -245,14 +345,28 @@ Inside the interactive session:
 ## Testing
 
 ```bash
-uv run pytest -q          # 567 tests
+uv run pytest -q          # 570 collected; PDF/torch tests skip if absent
 uv run ruff check src tests
 uv run mypy src
 ```
 
+These checks are offline and do not need a live Weaviate cluster or OpenAI key. The tests do need a `.env` file; the blank values from `.env.example` are enough. Tests that need the source PDF or optional `torch` skip when those are absent; with both installed, all 570 run.
+
 The suite covers extraction and table parsing, layout invariants, chunk provenance, metadata preservation, hybrid retrieval, reranking fallbacks, context assembly, grounding rules, citation verification, refusal behavior, and the CLI.
 
 Evaluation datasets and integrity checks live in `tests/eval/`; unit and integration suites live in `tests/unit/` and `tests/integration/`.
+
+## Common problems
+
+- **`uv` or `git` is not recognized:** install it from the Prerequisites links, then close and reopen the terminal.
+- **`weaviate_url` / `weaviate_api_key` is required:** `.env` is missing or not in the repository root. Copy `.env.example` to `.env`; blank values are enough for tests.
+- **OpenAI 401 / 429:** check `OPENAI_API_KEY`, billing, and quota.
+- **`Source PDF not found`:** place the filing at `data/raw/hdfc-bank__annual-report__fy2025-26.pdf`.
+- **`Expected 678 pages, got 629`:** you downloaded the standalone report, not the exchange filing. Use the NSE/BSE link in [Source document](#source-document).
+- **Checksum mismatch:** this is a warning by default. `--strict-checksum` makes it fatal; a different file may still work, but page citations may drift.
+- **Weaviate 503 or timeout:** the cluster may be asleep or paused, or `WEAVIATE_URL` may point to the wrong region. Wake it in the console and paste the exact REST endpoint, including `https://`.
+- **Weaviate auth error:** confirm `WEAVIATE_URL` is the cluster endpoint (not the console URL) and `WEAVIATE_API_KEY` is current.
+- **`--recreate` removed my data:** that is expected; it deletes and rebuilds `DiligenceChunk`. Use your own cluster, or omit the flag.
 
 ## Repository layout
 
@@ -281,7 +395,7 @@ This is a deliberate vertical slice, not a finished enterprise product.
 
 - **One document.** The index and chunk IDs target the HDFC Bank FY2025-26 report. Multi-document deal rooms and cross-company entity resolution are not implemented.
 - **CLI only.** There is no API server, web UI, authentication, or multi-tenant access control.
-- **PDF not included.** You must supply the [678-page source filing](#source-document); live ingestion and evaluation require paid OpenAI and Weaviate credentials.
+- **PDF not included.** You must supply the [678-page source filing](#source-document); live ingestion and evaluation require OpenAI and Weaviate credentials.
 - **Small benchmark.** Fifty questions on one document are useful for regression testing, not for claims of general accuracy.
 - **Not investment or legal advice.** Outputs are evidence summaries for analyst review, not recommendations.
 
@@ -295,6 +409,13 @@ Planned next steps: multi-document ingestion, a proper API boundary, and a large
 - [`_docs/preflight_audits.md`](_docs/preflight_audits.md) — corpus-scale extraction audits
 - [`_docs/plan.md`](_docs/plan.md) — milestone history and development log
 - [`docs/learning/`](docs/learning/) — a 19-part series documenting how the system was built
+
+### New to the codebase?
+
+1. Run the credential-free tests above.
+2. Read `_docs/architecture.md` for the big picture.
+3. Read [`docs/learning/00_rag_big_picture.md`](docs/learning/00_rag_big_picture.md), then the rest of the series in order.
+4. Open `src/due_diligence/` and read the module docstrings; each one explains its inputs, outputs, and dependencies.
 
 ## Tech stack
 

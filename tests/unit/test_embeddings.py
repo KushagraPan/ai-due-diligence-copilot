@@ -316,7 +316,7 @@ class TestLocalBGEEmbeddingProvider:
 
     def test_injected_model_and_tokenizer_document_embedding(self) -> None:
         """Test inference pipeline with injected test doubles (no model download)."""
-        import torch
+        torch = pytest.importorskip("torch")
 
         # Mock tokenizer returning PyTorch tensor dict
         mock_tokenizer = MagicMock()
@@ -356,7 +356,7 @@ class TestLocalBGEEmbeddingProvider:
 
     def test_injected_model_and_tokenizer_query_embedding_appends_instruction(self) -> None:
         """Verify that embed_query prepends BGE's asymmetric query instruction."""
-        import torch
+        torch = pytest.importorskip("torch")
 
         mock_tokenizer = MagicMock()
         mock_inputs = {

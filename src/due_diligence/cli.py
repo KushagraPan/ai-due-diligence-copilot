@@ -270,14 +270,26 @@ def format_evidence_display(result: PipelineQueryResult | DiligenceResponse) -> 
 
 def _friendly_error(exc: Exception) -> str:
     """Map common failures to user-facing messages without stack traces."""
-    if isinstance(exc, WeaviateConnectionError):
-        return "⚠️ Unable to reach the retrieval service.\nDetails: Weaviate connection failed."
     message = str(exc).strip()
     lowered = message.lower()
+
+    if isinstance(exc, WeaviateConnectionError) or "weaviate" in lowered:
+        if any(token in lowered for token in ("503", "not live", "timed out", "timeout")):
+            return (
+                "⚠️ Unable to reach Weaviate Cloud.\n"
+                "Details: the cluster may be asleep or paused. Open the Weaviate console, "
+                "wake the cluster, and retry."
+            )
+        if any(token in lowered for token in ("401", "403", "unauthorized", "forbidden", "api key")):
+            return (
+                "⚠️ Weaviate rejected the credentials.\n"
+                "Details: check WEAVIATE_URL and WEAVIATE_API_KEY."
+            )
+        return "⚠️ Unable to reach the retrieval service.\nDetails: Weaviate connection failed."
+
     if "openai" in lowered and ("api key" in lowered or "unauthorized" in lowered or "401" in lowered):
         return "⚠️ Language-model service rejected the request.\nDetails: check OPENAI_API_KEY."
-    if "weaviate" in lowered:
-        return f"⚠️ Unable to reach the retrieval service.\nDetails: {message or type(exc).__name__}."
+
     return f"❌ Something went wrong.\nDetails: {message or type(exc).__name__}."
 
 
@@ -312,7 +324,7 @@ def _show_trace(
         else:
             say(render_compact_trace(last_response, last_trace, settings))
     except Exception as exc:
-        logger.exception("Trace rendering failed")
+        logger.debug("Trace rendering failed", exc_info=True)
         say(f"⚠️ Could not render trace. Details: {exc}")
 
 
@@ -431,7 +443,7 @@ def run_interactive_session(
                 history = history[-max_history_turns:]
 
         except Exception as exc:
-            logger.exception("Error executing diligence pipeline for query")
+            logger.debug("Error executing diligence pipeline for query", exc_info=True)
             say(_friendly_error(exc) + "\n")
 
 
@@ -509,56 +521,61 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     settings = get_settings()
 
+    pipeline: DiligencePipeline | None = None
     try:
-        # Reuse single pipeline instance across executions
+        # Reuse a single pipeline instance across executions.
         retrieval_pipeline = RetrievalPipeline(settings=settings)
         pipeline = DiligencePipeline(
             settings=settings,
             retrieval_pipeline=retrieval_pipeline,
         )
     except Exception as exc:
-        logger.exception("CLI startup failed")
+        logger.debug("CLI startup failed", exc_info=True)
         say(_friendly_error(exc))
         return 1
 
-    show_evidence = not args.no_evidence
-    one_shot_query = args.question or args.query
+    try:
+        show_evidence = not args.no_evidence
+        one_shot_query = args.question or args.query
 
-    if one_shot_query:
-        # One-shot query mode
-        try:
-            recorder = TraceRecorder()
-            response = pipeline.run(
-                user_query=one_shot_query,
-                conversation_history=None,
-                company=args.company,
-                financial_period=args.period,
-                top_n=args.top_n,
-                top_k=args.top_k,
-                rerank_candidate_count=args.rerank_candidates,
-                trace=recorder,
-            )
-        except Exception as exc:
-            logger.exception("CLI one-shot query failed")
-            say(_friendly_error(exc))
-            return 1
-        say(format_answer_view(response, show_sources=show_evidence))
-        if args.trace:
-            say(render_compact_trace(response, recorder, settings))
+        if one_shot_query:
+            # One-shot query mode
+            try:
+                recorder = TraceRecorder()
+                response = pipeline.run(
+                    user_query=one_shot_query,
+                    conversation_history=None,
+                    company=args.company,
+                    financial_period=args.period,
+                    top_n=args.top_n,
+                    top_k=args.top_k,
+                    rerank_candidate_count=args.rerank_candidates,
+                    trace=recorder,
+                )
+            except Exception as exc:
+                logger.debug("CLI one-shot query failed", exc_info=True)
+                say(_friendly_error(exc))
+                return 1
+            say(format_answer_view(response, show_sources=show_evidence))
+            if args.trace:
+                say(render_compact_trace(response, recorder, settings))
+            return 0
+
+        # Interactive session mode
+        run_interactive_session(
+            pipeline=pipeline,
+            company=args.company,
+            financial_period=args.period,
+            top_n=args.top_n,
+            top_k=args.top_k,
+            rerank_candidate_count=args.rerank_candidates,
+            show_evidence=show_evidence,
+            show_trace=args.trace,
+        )
         return 0
-
-    # Interactive session mode
-    run_interactive_session(
-        pipeline=pipeline,
-        company=args.company,
-        financial_period=args.period,
-        top_n=args.top_n,
-        top_k=args.top_k,
-        rerank_candidate_count=args.rerank_candidates,
-        show_evidence=show_evidence,
-        show_trace=args.trace,
-    )
-    return 0
+    finally:
+        if pipeline is not None:
+            pipeline.close()
 
 
 if __name__ == "__main__":

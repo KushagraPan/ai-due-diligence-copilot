@@ -135,6 +135,10 @@ class RetrievalPipeline:
         """Default number of B4 candidates forwarded to B5 reranking."""
         return self._rerank_candidate_count
 
+    def close(self) -> None:
+        """Close owned retrieval resources, including the Weaviate connection."""
+        self._retriever.close()
+
     def run(
         self,
         user_query: str,

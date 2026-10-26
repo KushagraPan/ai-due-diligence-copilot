@@ -782,6 +782,8 @@ name = "due-diligence-copilot"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -808,6 +810,7 @@ research = [
 requires-dist = [
     { name = "docling", marker = "extra == 'research'", specifier = ">=2.130.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10.0" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "openai", specifier = ">=1.30.0" },
     { name = "pandas", marker = "extra == 'research'", specifier = ">=2.2.0" },
     { name = "pdfplumber", marker = "extra == 'research'", specifier = ">=0.11.0" },

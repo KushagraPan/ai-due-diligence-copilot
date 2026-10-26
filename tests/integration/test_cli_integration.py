@@ -16,6 +16,7 @@ import pytest
 from due_diligence.agents.citation_verifier import CitationVerifier
 from due_diligence.agents.generator import GroundedAnswer, GroundedGenerator
 from due_diligence.cli import (
+    _friendly_error,
     format_answer_view,
     format_cli_answer,
     format_sources_view,
@@ -241,6 +242,16 @@ def test_diligence_pipeline_end_to_end(
     assert cit.format_citation() == "[hdfc_annual_report_fy26.pdf, Page 402, Capital Adequacy]"
 
 
+def test_diligence_pipeline_close_delegates_to_retrieval(
+    mock_pipeline: DiligencePipeline,
+    mock_retriever: MagicMock,
+) -> None:
+    """Closing the end-to-end pipeline must close the underlying retriever."""
+    mock_pipeline.close()
+
+    mock_retriever.close.assert_called_once_with()
+
+
 def test_cli_format_answer_display(mock_pipeline: DiligencePipeline) -> None:
     """Test clean terminal formatting of DiligenceResponse."""
     response = mock_pipeline.run(user_query="What is the CET1 ratio?")
@@ -293,6 +304,7 @@ def test_cli_format_answer_no_evidence_flag(mock_pipeline: DiligencePipeline) ->
 
 def test_cli_one_shot_execution(
     mock_pipeline: DiligencePipeline,
+    mock_retriever: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -307,6 +319,19 @@ def test_cli_one_shot_execution(
     assert "🤖 Copilot" in captured
     assert "📚 Sources" in captured
     assert "[1] HDFC Bank Annual Report FY2025-26 — Page 402 — Capital Adequacy" in captured
+    mock_retriever.close.assert_called_once_with()
+
+
+def test_friendly_error_weaviate_503_points_to_console() -> None:
+    """A sleeping/paused Weaviate cluster should produce actionable guidance."""
+    message = _friendly_error(
+        WeaviateConnectionError("Meta endpoint! Unexpected status code: 503")
+    )
+
+    assert "Weaviate Cloud" in message
+    assert "asleep or paused" in message
+    assert "Weaviate console" in message
+    assert "Traceback" not in message
 
 
 def test_cli_interactive_session_multi_turn(

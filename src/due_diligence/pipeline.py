@@ -179,6 +179,10 @@ class DiligencePipeline:
         """Active citation verifier (Phase B8)."""
         return self._citation_verifier
 
+    def close(self) -> None:
+        """Close owned downstream resources, including the Weaviate connection."""
+        self._retrieval_pipeline.close()
+
     def run(
         self,
         user_query: str,

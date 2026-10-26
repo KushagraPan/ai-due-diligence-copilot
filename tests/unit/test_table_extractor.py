@@ -22,7 +22,8 @@ PDF_PATH = Path("data/raw/hdfc-bank__annual-report__fy2025-26.pdf")
 
 @pytest.fixture(scope="module")
 def hdfc_doc():
-    assert PDF_PATH.exists(), f"Test fixture PDF missing at {PDF_PATH}"
+    if not PDF_PATH.exists():
+        pytest.skip(f"Source PDF not present at {PDF_PATH}")
     doc = pymupdf.open(PDF_PATH)
     yield doc
     doc.close()

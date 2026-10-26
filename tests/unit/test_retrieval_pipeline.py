@@ -117,6 +117,25 @@ def test_settings() -> Settings:
 # ── Pipeline Unit & Integration Tests ────────────────────────────────────────
 
 
+def test_close_delegates_to_retriever(
+    mock_retriever: MagicMock,
+    mock_reranker: MagicMock,
+    mock_openai_client: MagicMock,
+    test_settings: Settings,
+) -> None:
+    """Closing the pipeline must close the owned retriever connection."""
+    pipeline = RetrievalPipeline(
+        retriever=mock_retriever,
+        reranker=mock_reranker,
+        query_rewriter=QueryRewriter(settings=test_settings, client=mock_openai_client),
+        settings=test_settings,
+    )
+
+    pipeline.close()
+
+    mock_retriever.close.assert_called_once_with()
+
+
 def test_pipeline_standalone_query_unaltered(
     mock_retriever: MagicMock,
     mock_reranker: MagicMock,
